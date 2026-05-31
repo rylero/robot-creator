@@ -7,17 +7,19 @@ import org.littletonrobotics.junction.Logger;
 public class Superstructure extends SubsystemBase {
 
   public enum WantedState {
-    IDLE
-    // TODO: add states for your robot's game actions
+{{- range $i, $s := .WantedStates}}
+    {{$s}}{{if lt (add1 $i) (len $.WantedStates)}},{{end}}
+{{- end}}
   }
 
   public enum CurrentState {
-    IDLE
-    // TODO: mirror WantedState values
+{{- range $i, $s := .ActiveStates}}
+    {{$s}}{{if lt (add1 $i) (len $.ActiveStates)}},{{end}}
+{{- end}}
   }
 
-  public WantedState wantedState = WantedState.IDLE;
-  public CurrentState currentState = CurrentState.IDLE;
+  public WantedState wantedState = WantedState.{{index .WantedStates 0}};
+  public CurrentState currentState = CurrentState.{{.DefaultActive}};
 
   public Superstructure() {}
 
@@ -32,22 +34,28 @@ public class Superstructure extends SubsystemBase {
 
   private CurrentState handleStateTransitions() {
     switch (wantedState) {
-      case IDLE:
+{{- range .Transitions}}
+      case {{.Wanted}}:
+        return CurrentState.{{.Active}};
+{{- end}}
       default:
-        return CurrentState.IDLE;
+        return CurrentState.{{.DefaultActive}};
     }
   }
 
   private void applyState(CurrentState state) {
     switch (state) {
-      case IDLE:
+{{- range .ActiveStates}}
+      case {{.}}:
+        // TODO: apply {{.}} state
+        break;
+{{- end}}
       default:
-        // TODO: stop all subsystems
         break;
     }
   }
-
-  public Command idle() {
-    return runOnce(() -> wantedState = WantedState.IDLE);
+{{range .WantedStates}}
+  public Command {{lowerCamel .}}() {
+    return runOnce(() -> wantedState = WantedState.{{.}});
   }
-}
+{{end}}}
