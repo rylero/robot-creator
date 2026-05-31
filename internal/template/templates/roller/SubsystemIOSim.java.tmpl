@@ -1,0 +1,31 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.math.system.plant.LinearSystemId;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.simulation.FlywheelSim;
+
+public class {{.Name}}IOSim implements {{.Name}}IO {
+  private final FlywheelSim sim =
+      new FlywheelSim(
+          LinearSystemId.createFlywheelSystem(DCMotor.getKrakenX60(1), 0.001, 1.0),
+          DCMotor.getKrakenX60(1));
+  private double appliedVolts = 0.0;
+
+  @Override
+  public void updateInputs({{.Name}}IOInputs inputs) {
+    sim.setInputVoltage(appliedVolts);
+    sim.update(0.02);
+    inputs.motorConnected = true;
+    inputs.velocity =
+        RotationsPerSecond.of(sim.getAngularVelocityRadPerSec() / (2.0 * Math.PI));
+    inputs.appliedVoltage = Volts.of(appliedVolts);
+    inputs.supplyCurrent = Amps.of(Math.abs(sim.getCurrentDrawAmps()));
+  }
+
+  @Override
+  public void setVoltage(Voltage volts) {
+    appliedVolts = volts.in(Volts);
+  }
+}

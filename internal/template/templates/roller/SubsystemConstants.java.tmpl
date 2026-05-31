@@ -1,0 +1,8 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import com.ctre.phoenix6.CANBus;
+
+public class {{.Name}}Constants {
+  public static final CANBus CAN_BUS = new CANBus("canivore");
+  public static final int MOTOR_ID = 0; // TODO: set CAN ID
+}
