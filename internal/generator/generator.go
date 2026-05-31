@@ -24,6 +24,7 @@ type SubsystemContext struct {
 	TeamNumber int
 	MotorCount int
 	Aligned    bool
+	LeaderID   int
 	Followers  []FollowerInfo
 }
 
