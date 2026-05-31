@@ -1,0 +1,43 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.VoltageOut;
+import com.ctre.phoenix6.hardware.TalonFX;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+
+public class {{.Name}}IOTalonFX implements {{.Name}}IO {
+  private final TalonFX motor =
+      new TalonFX({{.Name}}Constants.MOTOR_ID, {{.Name}}Constants.CAN_BUS);
+  private final StatusSignal<Voltage> appliedVoltage;
+  private final StatusSignal<Current> supplyCurrent;
+  private final VoltageOut voltageRequest = new VoltageOut(0);
+
+  public {{.Name}}IOTalonFX() {
+    var config = new TalonFXConfiguration();
+    config.CurrentLimits.StatorCurrentLimitEnable = true;
+    config.CurrentLimits.StatorCurrentLimit = 40;
+    config.CurrentLimits.SupplyCurrentLimitEnable = true;
+    config.CurrentLimits.SupplyCurrentLimit = 20;
+    motor.getConfigurator().apply(config);
+
+    appliedVoltage = motor.getMotorVoltage();
+    supplyCurrent = motor.getSupplyCurrent();
+    appliedVoltage.setUpdateFrequency(50);
+    supplyCurrent.setUpdateFrequency(20);
+  }
+
+  @Override
+  public void updateInputs({{.Name}}IOInputs inputs) {
+    inputs.motorConnected = appliedVoltage.getStatus().isOK();
+    inputs.appliedVoltage = appliedVoltage.getValue();
+    inputs.supplyCurrent = supplyCurrent.getValue();
+  }
+
+  @Override
+  public void setVoltage(Voltage volts) {
+    motor.setControl(voltageRequest.withOutput(volts));
+  }
+}

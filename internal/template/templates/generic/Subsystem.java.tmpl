@@ -1,0 +1,19 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import org.littletonrobotics.junction.Logger;
+
+public class {{.Name}} extends SubsystemBase {
+  private final {{.Name}}IO io;
+  private final {{.Name}}IOInputsAutoLogged inputs = new {{.Name}}IOInputsAutoLogged();
+
+  public {{.Name}}({{.Name}}IO io) {
+    this.io = io;
+  }
+
+  @Override
+  public void periodic() {
+    io.updateInputs(inputs);
+    Logger.processInputs("{{.Name}}", inputs);
+  }
+}
