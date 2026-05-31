@@ -1,0 +1,28 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import com.ctre.phoenix6.CANBus;
+import com.ctre.phoenix6.configs.MotionMagicConfigs;
+import static edu.wpi.first.units.Units.*;
+import edu.wpi.first.units.measure.Distance;
+import frc.robot.util.LoggedNetworkPIDFeedforwardGains;
+
+public class {{.Name}}Constants {
+  public static final CANBus CAN_BUS = new CANBus("canivore");
+  public static final int LEADER_ID = 0;   // TODO: set CAN IDs
+  public static final int FOLLOWER_ID = 1;
+  public static final boolean FOLLOWER_OPPOSED = false;
+  public static final double GEARING = 5.0;
+  public static final double SPOOL_CIRCUMFERENCE_M = 0.05 * Math.PI; // TODO: measure spool
+
+  public static final Distance MAX_HEIGHT = Meters.of(1.0);
+  public static final Distance POSITION_TOLERANCE = Meters.of(0.01);
+
+  public static final LoggedNetworkPIDFeedforwardGains GAINS =
+      new LoggedNetworkPIDFeedforwardGains(
+          5.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3, "{{.Name}}");
+
+  public static final MotionMagicConfigs MOTION_MAGIC_CONFIGS =
+      new MotionMagicConfigs()
+          .withMotionMagicCruiseVelocity(1.0)
+          .withMotionMagicAcceleration(3.0);
+}

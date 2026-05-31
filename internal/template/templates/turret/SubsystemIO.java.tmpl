@@ -1,0 +1,25 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+import org.littletonrobotics.junction.AutoLog;
+
+public interface {{.Name}}IO {
+  @AutoLog
+  public static class {{.Name}}IOInputs {
+    public boolean motorConnected = false;
+    public Angle position = Rotations.of(0.0);
+    public AngularVelocity velocity = RotationsPerSecond.of(0.0);
+    public Voltage appliedVoltage = Volts.of(0.0);
+    public Current supplyCurrent = Amps.of(0.0);
+  }
+
+  public default void updateInputs({{.Name}}IOInputs inputs) {}
+
+  public default void setAngle(Angle angle) {}
+
+  public default void setVoltage(Voltage volts) {}
+}

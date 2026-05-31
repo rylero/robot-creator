@@ -1,0 +1,88 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.Follower;
+import com.ctre.phoenix6.controls.MotionMagicPositionVoltage;
+import com.ctre.phoenix6.controls.VoltageOut;
+import com.ctre.phoenix6.hardware.TalonFX;
+import com.ctre.phoenix6.signals.NeutralModeValue;
+import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+
+public class {{.Name}}IOTalonFX implements {{.Name}}IO {
+  private final TalonFX leader =
+      new TalonFX({{.Name}}Constants.LEADER_ID, {{.Name}}Constants.CAN_BUS);
+  private final TalonFX follower =
+      new TalonFX({{.Name}}Constants.FOLLOWER_ID, {{.Name}}Constants.CAN_BUS);
+  private final StatusSignal<Angle> position;
+  private final StatusSignal<AngularVelocity> velocity;
+  private final StatusSignal<Voltage> appliedVoltage;
+  private final StatusSignal<Current> leaderCurrent;
+  private final StatusSignal<Current> followerCurrent;
+  private final MotionMagicPositionVoltage positionRequest =
+      new MotionMagicPositionVoltage(0).withSlot(0);
+  private final VoltageOut voltageRequest = new VoltageOut(0);
+
+  public {{.Name}}IOTalonFX() {
+    var config = new TalonFXConfiguration();
+    config.Feedback.SensorToMechanismRatio = {{.Name}}Constants.GEARING;
+    config.MotorOutput.Inverted = {{.Name}}Constants.LEADER_DIRECTION;
+    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    config.Slot0 = {{.Name}}Constants.GAINS.toSlot0Configs();
+    config.MotionMagic = {{.Name}}Constants.MOTION_MAGIC_CONFIGS;
+    config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
+        {{.Name}}Constants.MAX_ANGLE.in(Rotations);
+    config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
+        {{.Name}}Constants.MIN_ANGLE.in(Rotations);
+    config.CurrentLimits.StatorCurrentLimitEnable = true;
+    config.CurrentLimits.StatorCurrentLimit = 40;
+    leader.getConfigurator().apply(config);
+    follower.getConfigurator().apply(config);
+    follower.setControl(new Follower(leader.getDeviceID(), {{.Name}}Constants.FOLLOWER_OPPOSED));
+
+    position = leader.getPosition();
+    velocity = leader.getVelocity();
+    appliedVoltage = leader.getMotorVoltage();
+    leaderCurrent = leader.getSupplyCurrent();
+    followerCurrent = follower.getSupplyCurrent();
+    position.setUpdateFrequency(50);
+    velocity.setUpdateFrequency(50);
+    appliedVoltage.setUpdateFrequency(20);
+    leaderCurrent.setUpdateFrequency(20);
+    followerCurrent.setUpdateFrequency(20);
+  }
+
+  @Override
+  public void updateInputs({{.Name}}IOInputs inputs) {
+    inputs.leaderConnected = position.getStatus().isOK();
+    inputs.followerConnected = followerCurrent.getStatus().isOK();
+    inputs.position = position.getValue();
+    inputs.velocity = velocity.getValue();
+    inputs.appliedVoltage = appliedVoltage.getValue();
+    inputs.leaderSupplyCurrent = leaderCurrent.getValue();
+    inputs.followerSupplyCurrent = followerCurrent.getValue();
+  }
+
+  @Override
+  public void setAngle(Angle angle) {
+    leader.setControl(positionRequest.withPosition(angle.in(Rotations)));
+  }
+
+  @Override
+  public void setVoltage(Voltage volts) {
+    leader.setControl(voltageRequest.withOutput(volts));
+  }
+
+  @Override
+  public void setBrakeMode(boolean brake) {
+    var mode = brake ? NeutralModeValue.Brake : NeutralModeValue.Coast;
+    leader.setNeutralMode(mode);
+    follower.setNeutralMode(mode);
+  }
+}

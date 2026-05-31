@@ -1,0 +1,45 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.simulation.ElevatorSim;
+
+public class {{.Name}}IOSim implements {{.Name}}IO {
+  private final ElevatorSim sim =
+      new ElevatorSim(
+          DCMotor.getKrakenX60(2),
+          {{.Name}}Constants.GEARING,
+          5.0,
+          {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M / (2 * Math.PI),
+          0.0,
+          {{.Name}}Constants.MAX_HEIGHT.in(Meters),
+          true,
+          0.0);
+  private double appliedVolts = 0.0;
+
+  @Override
+  public void updateInputs({{.Name}}IOInputs inputs) {
+    sim.setInputVoltage(appliedVolts);
+    sim.update(0.02);
+    inputs.leaderConnected = true;
+    inputs.followerConnected = true;
+    inputs.position = Meters.of(sim.getPositionMeters());
+    inputs.velocity = MetersPerSecond.of(sim.getVelocityMetersPerSecond());
+    inputs.appliedVoltage = Volts.of(appliedVolts);
+    inputs.leaderSupplyCurrent = Amps.of(sim.getCurrentDrawAmps() / 2.0);
+    inputs.followerSupplyCurrent = Amps.of(sim.getCurrentDrawAmps() / 2.0);
+  }
+
+  @Override
+  public void setPosition(Distance position) {
+    double error = position.in(Meters) - sim.getPositionMeters();
+    appliedVolts = Math.max(-12, Math.min(12, error * 10));
+  }
+
+  @Override
+  public void setVoltage(Voltage volts) {
+    appliedVolts = volts.in(Volts);
+  }
+}

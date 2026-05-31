@@ -1,0 +1,89 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.Follower;
+import com.ctre.phoenix6.controls.MotionMagicPositionVoltage;
+import com.ctre.phoenix6.controls.VoltageOut;
+import com.ctre.phoenix6.hardware.TalonFX;
+import com.ctre.phoenix6.signals.NeutralModeValue;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearVelocity;
+import edu.wpi.first.units.measure.Voltage;
+
+public class {{.Name}}IOTalonFX implements {{.Name}}IO {
+  private final TalonFX leader =
+      new TalonFX({{.Name}}Constants.LEADER_ID, {{.Name}}Constants.CAN_BUS);
+  private final TalonFX follower =
+      new TalonFX({{.Name}}Constants.FOLLOWER_ID, {{.Name}}Constants.CAN_BUS);
+  private final StatusSignal<Double> position;
+  private final StatusSignal<Double> velocity;
+  private final StatusSignal<Voltage> appliedVoltage;
+  private final StatusSignal<Current> leaderCurrent;
+  private final StatusSignal<Current> followerCurrent;
+  private final MotionMagicPositionVoltage positionRequest =
+      new MotionMagicPositionVoltage(0).withSlot(0);
+  private final VoltageOut voltageRequest = new VoltageOut(0);
+
+  public {{.Name}}IOTalonFX() {
+    var config = new TalonFXConfiguration();
+    config.Feedback.SensorToMechanismRatio = {{.Name}}Constants.GEARING;
+    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    config.Slot0 = {{.Name}}Constants.GAINS.toSlot0Configs();
+    config.MotionMagic = {{.Name}}Constants.MOTION_MAGIC_CONFIGS;
+    config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
+        {{.Name}}Constants.MAX_HEIGHT.in(Meters) / {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M;
+    config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = 0;
+    config.CurrentLimits.StatorCurrentLimitEnable = true;
+    config.CurrentLimits.StatorCurrentLimit = 60;
+    leader.getConfigurator().apply(config);
+    follower.getConfigurator().apply(config);
+    follower.setControl(new Follower(leader.getDeviceID(), {{.Name}}Constants.FOLLOWER_OPPOSED));
+
+    position = leader.getPosition();
+    velocity = leader.getVelocity();
+    appliedVoltage = leader.getMotorVoltage();
+    leaderCurrent = leader.getSupplyCurrent();
+    followerCurrent = follower.getSupplyCurrent();
+    position.setUpdateFrequency(50);
+    velocity.setUpdateFrequency(50);
+    appliedVoltage.setUpdateFrequency(20);
+    leaderCurrent.setUpdateFrequency(20);
+    followerCurrent.setUpdateFrequency(20);
+  }
+
+  @Override
+  public void updateInputs({{.Name}}IOInputs inputs) {
+    inputs.leaderConnected = appliedVoltage.getStatus().isOK();
+    inputs.followerConnected = followerCurrent.getStatus().isOK();
+    double rotations = position.getValue();
+    inputs.position = Meters.of(rotations * {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M);
+    inputs.velocity = MetersPerSecond.of(
+        velocity.getValue() * {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M);
+    inputs.appliedVoltage = appliedVoltage.getValue();
+    inputs.leaderSupplyCurrent = leaderCurrent.getValue();
+    inputs.followerSupplyCurrent = followerCurrent.getValue();
+  }
+
+  @Override
+  public void setPosition(Distance position) {
+    double rotations = position.in(Meters) / {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M;
+    leader.setControl(positionRequest.withPosition(rotations));
+  }
+
+  @Override
+  public void setVoltage(Voltage volts) {
+    leader.setControl(voltageRequest.withOutput(volts));
+  }
+
+  @Override
+  public void setBrakeMode(boolean brake) {
+    var mode = brake ? NeutralModeValue.Brake : NeutralModeValue.Coast;
+    leader.setNeutralMode(mode);
+    follower.setNeutralMode(mode);
+  }
+}

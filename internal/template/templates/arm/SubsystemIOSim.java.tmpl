@@ -1,0 +1,45 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.simulation.SingleJointedArmSim;
+
+public class {{.Name}}IOSim implements {{.Name}}IO {
+  private final SingleJointedArmSim sim =
+      new SingleJointedArmSim(
+          DCMotor.getKrakenX60(2),
+          {{.Name}}Constants.GEARING,
+          0.5,
+          0.5,
+          {{.Name}}Constants.MIN_ANGLE.in(Radians),
+          {{.Name}}Constants.MAX_ANGLE.in(Radians),
+          true,
+          {{.Name}}Constants.MIN_ANGLE.in(Radians));
+  private double appliedVolts = 0.0;
+
+  @Override
+  public void updateInputs({{.Name}}IOInputs inputs) {
+    sim.setInputVoltage(appliedVolts);
+    sim.update(0.02);
+    inputs.leaderConnected = true;
+    inputs.followerConnected = true;
+    inputs.position = Radians.of(sim.getAngleRads());
+    inputs.velocity = RadiansPerSecond.of(sim.getVelocityRadPerSec());
+    inputs.appliedVoltage = Volts.of(appliedVolts);
+    inputs.leaderSupplyCurrent = Amps.of(sim.getCurrentDrawAmps() / 2.0);
+    inputs.followerSupplyCurrent = Amps.of(sim.getCurrentDrawAmps() / 2.0);
+  }
+
+  @Override
+  public void setAngle(Angle angle) {
+    double error = angle.in(Radians) - sim.getAngleRads();
+    appliedVolts = Math.max(-12, Math.min(12, error * 10));
+  }
+
+  @Override
+  public void setVoltage(Voltage volts) {
+    appliedVolts = volts.in(Volts);
+  }
+}
