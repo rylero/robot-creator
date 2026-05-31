@@ -25,6 +25,6 @@ public class {{.Name}}Constants {
 
   public static final MotionMagicConfigs MOTION_MAGIC_CONFIGS =
       new MotionMagicConfigs()
-          .withMotionMagicCruiseVelocity(0.5)
-          .withMotionMagicAcceleration(1.0);
+          .withMotionMagicCruiseVelocity(RotationsPerSecond.of(0.5))
+          .withMotionMagicAcceleration(RotationsPerSecondPerSecond.of(1.0));
 }

@@ -1,30 +1,46 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
 import static edu.wpi.first.units.Units.*;
+import static frc.robot.util.PhoenixUtil.tryUntilOk;
+
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.Follower;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
+import com.ctre.phoenix6.hardware.ParentDevice;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.NeutralModeValue;
+import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Current;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.Alert;
+import edu.wpi.first.wpilibj.Alert.AlertType;
+import frc.robot.util.AlertUtils;
+import frc.robot.util.BetterStatusSignalCollection;
 
 public class {{.Name}}IOTalonFX implements {{.Name}}IO {
+  private final Alert statusSignalAlert =
+      new Alert("ISSUE", "Status Signal Error", AlertType.kError);
+  private final Alert configAlert =
+      new Alert("CRITICAL", "Failed to Configure {{.Name}} Motor", AlertType.kError);
+
   private final TalonFX leader =
       new TalonFX({{.Name}}Constants.LEADER_ID, {{.Name}}Constants.CAN_BUS);
   private final TalonFX follower =
       new TalonFX({{.Name}}Constants.FOLLOWER_ID, {{.Name}}Constants.CAN_BUS);
-  private final StatusSignal<Double> position;
-  private final StatusSignal<Double> velocity;
+
+  private final StatusSignal<Angle> position;
+  private final StatusSignal<AngularVelocity> velocity;
   private final StatusSignal<Voltage> appliedVoltage;
   private final StatusSignal<Current> leaderCurrent;
   private final StatusSignal<Current> followerCurrent;
-  private final MotionMagicVoltage positionRequest =
-      new MotionMagicVoltage(0).withSlot(0);
+  private final BetterStatusSignalCollection statusSignalCollector;
+
+  private final MotionMagicVoltage positionRequest = new MotionMagicVoltage(0).withSlot(0);
   private final VoltageOut voltageRequest = new VoltageOut(0);
 
   public {{.Name}}IOTalonFX() {
@@ -40,8 +56,10 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
     config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = 0;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
     config.CurrentLimits.StatorCurrentLimit = 60;
-    leader.getConfigurator().apply(config);
-    follower.getConfigurator().apply(config);
+    AlertUtils.processCriticalAlert(
+        configAlert, !tryUntilOk(5, () -> leader.getConfigurator().apply(config)));
+    AlertUtils.processCriticalAlert(
+        configAlert, !tryUntilOk(5, () -> follower.getConfigurator().apply(config)));
     follower.setControl(new Follower(leader.getDeviceID(), {{.Name}}Constants.FOLLOWER_OPPOSED));
 
     position = leader.getPosition();
@@ -54,16 +72,29 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
     appliedVoltage.setUpdateFrequency(20);
     leaderCurrent.setUpdateFrequency(20);
     followerCurrent.setUpdateFrequency(20);
+    statusSignalCollector =
+        new BetterStatusSignalCollection(
+            position, velocity, appliedVoltage, leaderCurrent, followerCurrent);
+    ParentDevice.optimizeBusUtilizationForAll(leader, follower);
   }
 
   @Override
   public void updateInputs({{.Name}}IOInputs inputs) {
-    inputs.leaderConnected = appliedVoltage.getStatus().isOK();
+    statusSignalCollector.refreshAll();
+    if (!statusSignalCollector.isAllGood()) {
+      statusSignalAlert.set(true);
+      statusSignalAlert.setText(
+          "{{.Name}} TalonFX Status Signal Error: "
+              + statusSignalCollector.getBadSignalsString());
+    } else {
+      statusSignalAlert.set(false);
+    }
+    inputs.leaderConnected = position.getStatus().isOK();
     inputs.followerConnected = followerCurrent.getStatus().isOK();
-    double rotations = position.getValue();
+    double rotations = position.getValue().in(Rotations);
     inputs.position = Meters.of(rotations * {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M);
     inputs.velocity = MetersPerSecond.of(
-        velocity.getValue() * {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M);
+        velocity.getValue().in(RotationsPerSecond) * {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M);
     inputs.appliedVoltage = appliedVoltage.getValue();
     inputs.leaderSupplyCurrent = leaderCurrent.getValue();
     inputs.followerSupplyCurrent = followerCurrent.getValue();
