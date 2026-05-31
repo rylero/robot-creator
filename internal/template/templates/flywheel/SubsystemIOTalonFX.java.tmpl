@@ -1,0 +1,58 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.MotionMagicVelocityVoltage;
+import com.ctre.phoenix6.hardware.TalonFX;
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+
+public class {{.Name}}IOTalonFX implements {{.Name}}IO {
+  private final TalonFX motor =
+      new TalonFX({{.Name}}Constants.MOTOR_ID, {{.Name}}Constants.CAN_BUS);
+  private final StatusSignal<AngularVelocity> velocity;
+  private final StatusSignal<Current> supplyCurrent;
+  private final StatusSignal<Voltage> appliedVoltage;
+  private final MotionMagicVelocityVoltage velocityRequest =
+      new MotionMagicVelocityVoltage(0).withSlot(0);
+
+  public {{.Name}}IOTalonFX() {
+    var config = new TalonFXConfiguration();
+    config.Feedback.SensorToMechanismRatio = {{.Name}}Constants.GEARING;
+    config.MotorOutput.Inverted = {{.Name}}Constants.MOTOR_DIRECTION;
+    config.Slot0 = {{.Name}}Constants.GAINS.toSlot0Configs();
+    config.MotionMagic = {{.Name}}Constants.MOTION_MAGIC_CONFIGS;
+    config.CurrentLimits.StatorCurrentLimitEnable = true;
+    config.CurrentLimits.StatorCurrentLimit = 40;
+    config.CurrentLimits.SupplyCurrentLimitEnable = true;
+    config.CurrentLimits.SupplyCurrentLimit = 20;
+    motor.getConfigurator().apply(config);
+
+    velocity = motor.getVelocity();
+    supplyCurrent = motor.getSupplyCurrent();
+    appliedVoltage = motor.getMotorVoltage();
+    velocity.setUpdateFrequency(50);
+    supplyCurrent.setUpdateFrequency(20);
+    appliedVoltage.setUpdateFrequency(20);
+  }
+
+  @Override
+  public void updateInputs({{.Name}}IOInputs inputs) {
+    inputs.motorConnected = velocity.getStatus().isOK();
+    inputs.velocity = velocity.getValue();
+    inputs.supplyCurrent = supplyCurrent.getValue();
+    inputs.appliedVoltage = appliedVoltage.getValue();
+  }
+
+  @Override
+  public void setVelocity(AngularVelocity v) {
+    motor.setControl(velocityRequest.withVelocity(v));
+  }
+
+  @Override
+  public void stop() {
+    motor.stopMotor();
+  }
+}

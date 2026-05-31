@@ -1,0 +1,27 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import com.ctre.phoenix6.CANBus;
+import com.ctre.phoenix6.configs.MotionMagicConfigs;
+import com.ctre.phoenix6.signals.InvertedValue;
+import static edu.wpi.first.units.Units.*;
+import edu.wpi.first.units.measure.AngularVelocity;
+import frc.robot.util.LoggedNetworkPIDFeedforwardGains;
+import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
+
+public class {{.Name}}Constants {
+  public static final CANBus CAN_BUS = new CANBus("canivore");
+  public static final int MOTOR_ID = 0; // TODO: set CAN ID
+  public static final double GEARING = 1.0;
+  public static final InvertedValue MOTOR_DIRECTION = InvertedValue.CounterClockwise_Positive;
+  public static final AngularVelocity VELOCITY_TOLERANCE = RotationsPerSecond.of(2.0);
+
+  public static final LoggedNetworkNumber TARGET_VELOCITY =
+      new LoggedNetworkNumber("{{.Name}}/TargetVelocityRPS", 50.0);
+
+  public static final LoggedNetworkPIDFeedforwardGains GAINS =
+      new LoggedNetworkPIDFeedforwardGains(
+          0.5, 0.0, 0.0, 0.0, 0.12, 0.24, 0.0, "{{.Name}}");
+
+  public static final MotionMagicConfigs MOTION_MAGIC_CONFIGS =
+      new MotionMagicConfigs().withMotionMagicAcceleration(300);
+}

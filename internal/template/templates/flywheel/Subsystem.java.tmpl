@@ -1,0 +1,41 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import org.littletonrobotics.junction.Logger;
+
+public class {{.Name}} extends SubsystemBase {
+  private final {{.Name}}IO io;
+  private final {{.Name}}IOInputsAutoLogged inputs = new {{.Name}}IOInputsAutoLogged();
+  private AngularVelocity targetVelocity = RotationsPerSecond.of(0);
+
+  public {{.Name}}({{.Name}}IO io) {
+    this.io = io;
+  }
+
+  @Override
+  public void periodic() {
+    io.updateInputs(inputs);
+    Logger.processInputs("{{.Name}}", inputs);
+  }
+
+  public Command setVelocity(AngularVelocity velocity) {
+    return runOnce(() -> {
+      targetVelocity = velocity;
+      io.setVelocity(velocity);
+    });
+  }
+
+  public Command stop() {
+    return runOnce(() -> {
+      targetVelocity = RotationsPerSecond.of(0);
+      io.stop();
+    });
+  }
+
+  public boolean atTargetVelocity() {
+    return inputs.velocity.isNear(targetVelocity, {{.Name}}Constants.VELOCITY_TOLERANCE);
+  }
+}
