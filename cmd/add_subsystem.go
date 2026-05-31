@@ -72,7 +72,7 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 		}
 		if err := inj.Inject(si); err != nil {
 			fmt.Printf("\nWarning: could not auto-inject into RobotContainer.java: %v\n", err)
-			fmt.Println("Add these lines manually:\n")
+			fmt.Println("Add these lines manually:")
 			printManualInstructions(si)
 		} else {
 			fmt.Println("  injected into RobotContainer.java")

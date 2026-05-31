@@ -1,0 +1,58 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+
+	"github.com/spf13/cobra"
+	"github.com/ced4rtree/robot-creator/internal/config"
+)
+
+var (
+	projectName string
+	teamNumber  int
+	repoURL     string
+	packageName string
+)
+
+const defaultRepo = "https://github.com/TEMP_URL/akit-robot-template"
+
+var initCmd = &cobra.Command{
+	Use:   "init",
+	Short: "Clone the AKit starter repo and initialize robot-creator.yaml",
+	RunE:  runInit,
+}
+
+func init() {
+	initCmd.Flags().StringVarP(&projectName, "name", "n", "", "project directory name (required)")
+	initCmd.Flags().IntVarP(&teamNumber, "team", "t", 0, "FRC team number (required)")
+	initCmd.Flags().StringVar(&repoURL, "repo", defaultRepo, "AKit template repo URL")
+	initCmd.Flags().StringVar(&packageName, "package", "frc.robot", "Java package name")
+	initCmd.MarkFlagRequired("name")
+	initCmd.MarkFlagRequired("team")
+	rootCmd.AddCommand(initCmd)
+}
+
+func runInit(cmd *cobra.Command, args []string) error {
+	if _, err := os.Stat(projectName); err == nil {
+		return fmt.Errorf("directory %q already exists", projectName)
+	}
+
+	fmt.Printf("Cloning %s into %s/...\n", repoURL, projectName)
+	gitCmd := exec.Command("git", "clone", repoURL, projectName)
+	gitCmd.Stdout = os.Stdout
+	gitCmd.Stderr = os.Stderr
+	if err := gitCmd.Run(); err != nil {
+		os.RemoveAll(projectName)
+		return fmt.Errorf("git clone failed: %w", err)
+	}
+
+	cfg := &config.Config{Team: teamNumber, Package: packageName}
+	if err := config.Save(projectName, cfg); err != nil {
+		return fmt.Errorf("writing robot-creator.yaml: %w", err)
+	}
+
+	fmt.Printf("\nProject %s created!\ncd %s && robot-creator add subsystem <Name> --type <type>\n", projectName, projectName)
+	return nil
+}
