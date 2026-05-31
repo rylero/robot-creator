@@ -3,7 +3,7 @@ package {{.Package}}.subsystems.{{.NameLower}};
 import static edu.wpi.first.units.Units.*;
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.MotionMagicPositionVoltage;
+import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import edu.wpi.first.units.measure.Angle;
@@ -18,8 +18,8 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
   private final StatusSignal<AngularVelocity> velocity;
   private final StatusSignal<Voltage> appliedVoltage;
   private final StatusSignal<Current> supplyCurrent;
-  private final MotionMagicPositionVoltage positionRequest =
-      new MotionMagicPositionVoltage(0).withSlot(0);
+  private final MotionMagicVoltage positionRequest =
+      new MotionMagicVoltage(0).withSlot(0);
   private final VoltageOut voltageRequest = new VoltageOut(0);
 
   public {{.Name}}IOTalonFX() {
