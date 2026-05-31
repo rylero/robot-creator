@@ -16,7 +16,7 @@ var (
 	packageName string
 )
 
-const defaultRepo = "https://github.com/TEMP_URL/akit-robot-template"
+const defaultRepo = "https://github.com/rylero/akit-robot-template"
 
 var initCmd = &cobra.Command{
 	Use:   "init",
