@@ -9,7 +9,7 @@ import frc.robot.util.LoggedNetworkPIDFeedforwardGains;
 
 public class {{.Name}}Constants {
   public static final CANBus CAN_BUS = new CANBus("canivore");
-  public static final int MOTOR_ID = 0; // TODO: set CAN ID
+  public static final int MOTOR_ID = {{.LeaderID}}; // TODO: set CAN ID
   public static final double GEARING = 1.0;
   public static final InvertedValue MOTOR_DIRECTION = InvertedValue.CounterClockwise_Positive;
   public static final Angle ANGLE_TOLERANCE = Rotations.of(0.01);
