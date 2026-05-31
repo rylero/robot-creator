@@ -164,6 +164,38 @@ func insertLine(lines []string, idx int, line string) []string {
 	return result
 }
 
+func (inj *Injector) Eject(s SubsystemInjection) error {
+	content, err := os.ReadFile(inj.RobotContainerPath)
+	if err != nil {
+		return fmt.Errorf("reading RobotContainer.java: %w", err)
+	}
+
+	pkg := s.Package + ".subsystems." + s.NameLower
+	importPrefix := "import " + pkg + "."
+	fieldPattern := fmt.Sprintf("private final %s %s;", s.Name, s.NameLower)
+	assignPattern := fmt.Sprintf("%s = new %s(new %sIO", s.NameLower, s.Name, s.Name)
+
+	lines := strings.Split(string(content), "\n")
+	result := make([]string, 0, len(lines))
+	removed := 0
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, importPrefix) ||
+			trimmed == fieldPattern ||
+			strings.HasPrefix(trimmed, assignPattern) {
+			removed++
+			continue
+		}
+		result = append(result, line)
+	}
+
+	if removed == 0 {
+		return fmt.Errorf("no injected lines found for %s in RobotContainer.java", s.Name)
+	}
+
+	return os.WriteFile(inj.RobotContainerPath, []byte(strings.Join(result, "\n")), 0644)
+}
+
 func leadingWhitespace(s string) string {
 	return s[:len(s)-len(strings.TrimLeft(s, " \t"))]
 }
