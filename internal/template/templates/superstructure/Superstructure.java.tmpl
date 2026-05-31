@@ -1,0 +1,53 @@
+package {{.Package}}.subsystems.superstructure;
+
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import org.littletonrobotics.junction.Logger;
+
+public class Superstructure extends SubsystemBase {
+
+  public enum WantedState {
+    IDLE
+    // TODO: add states for your robot's game actions
+  }
+
+  public enum CurrentState {
+    IDLE
+    // TODO: mirror WantedState values
+  }
+
+  public WantedState wantedState = WantedState.IDLE;
+  public CurrentState currentState = CurrentState.IDLE;
+
+  public Superstructure() {}
+
+  @Override
+  public void periodic() {
+    CurrentState nextState = handleStateTransitions();
+    applyState(nextState);
+    currentState = nextState;
+    Logger.recordOutput("Superstructure/WantedState", wantedState.toString());
+    Logger.recordOutput("Superstructure/CurrentState", currentState.toString());
+  }
+
+  private CurrentState handleStateTransitions() {
+    switch (wantedState) {
+      case IDLE:
+      default:
+        return CurrentState.IDLE;
+    }
+  }
+
+  private void applyState(CurrentState state) {
+    switch (state) {
+      case IDLE:
+      default:
+        // TODO: stop all subsystems
+        break;
+    }
+  }
+
+  public Command idle() {
+    return runOnce(() -> wantedState = WantedState.IDLE);
+  }
+}
