@@ -93,7 +93,12 @@ func runAddSuperstructure(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	source := tmplpkg.NewEmbeddedSource()
+	var source tmplpkg.TemplateSource
+	if cfg.TemplatesDir != "" {
+		source = tmplpkg.NewLocalSource(filepath.Join(root, cfg.TemplatesDir))
+	} else {
+		source = tmplpkg.NewEmbeddedSource()
+	}
 	raw, err := source.GetTemplate("superstructure", "Superstructure.java.tmpl")
 	if err != nil {
 		return err

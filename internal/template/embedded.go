@@ -8,6 +8,9 @@ import (
 //go:embed templates
 var embeddedFS embed.FS
 
+// EmbeddedFS exposes the raw embedded filesystem for export operations.
+var EmbeddedFS = &embeddedFS
+
 type EmbeddedTemplateSource struct{}
 
 func NewEmbeddedSource() *EmbeddedTemplateSource {

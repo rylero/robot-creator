@@ -14,6 +14,7 @@ var (
 	teamNumber  int
 	repoURL     string
 	packageName string
+	noClone     bool
 )
 
 const defaultRepo = "https://github.com/rylero/akit-robot-template"
@@ -25,16 +26,31 @@ var initCmd = &cobra.Command{
 }
 
 func init() {
-	initCmd.Flags().StringVarP(&projectName, "name", "n", "", "project directory name (required)")
+	initCmd.Flags().StringVarP(&projectName, "name", "n", "", "project directory name (clones into this dir; omit with --no-clone)")
 	initCmd.Flags().IntVarP(&teamNumber, "team", "t", 0, "FRC team number (required)")
 	initCmd.Flags().StringVar(&repoURL, "repo", defaultRepo, "AKit template repo URL")
 	initCmd.Flags().StringVar(&packageName, "package", "frc.robot", "Java package name")
-	initCmd.MarkFlagRequired("name")
+	initCmd.Flags().BoolVar(&noClone, "no-clone", false, "skip git clone; write robot-creator.yaml into the current directory")
 	initCmd.MarkFlagRequired("team")
 	rootCmd.AddCommand(initCmd)
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
+	if noClone {
+		if _, err := os.Stat(config.FileName); err == nil {
+			return fmt.Errorf("robot-creator.yaml already exists in current directory")
+		}
+		cfg := &config.Config{Team: teamNumber, Package: packageName}
+		if err := config.Save(".", cfg); err != nil {
+			return fmt.Errorf("writing robot-creator.yaml: %w", err)
+		}
+		fmt.Printf("Initialized robot-creator.yaml (no clone)\nRun: robot-creator add subsystem <Name> --type <type>\n")
+		return nil
+	}
+
+	if projectName == "" {
+		return fmt.Errorf("--name is required unless --no-clone is set")
+	}
 	if _, err := os.Stat(projectName); err == nil {
 		return fmt.Errorf("directory %q already exists", projectName)
 	}

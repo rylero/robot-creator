@@ -16,6 +16,7 @@ import (
 var subsystemType string
 var motorCount int
 var aligned bool
+var leaderID int
 
 var addSubsystemCmd = &cobra.Command{
 	Use:   "subsystem <Name>",
@@ -29,6 +30,7 @@ func init() {
 	addSubsystemCmd.Flags().StringVarP(&subsystemType, "type", "t", "", "subsystem type (flywheel|pivot|roller|arm|elevator|turret|generic|manipulator)")
 	addSubsystemCmd.Flags().IntVar(&motorCount, "motors", 0, "number of motors for arm/elevator/manipulator (default: 2 for arm/elevator, 1 for manipulator)")
 	addSubsystemCmd.Flags().BoolVar(&aligned, "aligned", true, "followers are mechanically aligned to leader (arm/elevator/manipulator with 2+ motors)")
+	addSubsystemCmd.Flags().IntVar(&leaderID, "id", 0, "leader/motor CAN ID (followers get consecutive IDs)")
 	addSubsystemCmd.MarkFlagRequired("type")
 }
 
@@ -44,13 +46,13 @@ func resolveMotorCount(t string, flag int) int {
 	}
 }
 
-func buildFollowers(n int) []generator.FollowerInfo {
+func buildFollowers(n int, leaderID int) []generator.FollowerInfo {
 	if n <= 1 {
 		return nil
 	}
 	followers := make([]generator.FollowerInfo, 0, n-1)
 	for i := 2; i <= n; i++ {
-		followers = append(followers, generator.FollowerInfo{Index: i, DefaultID: i - 1})
+		followers = append(followers, generator.FollowerInfo{Index: i, DefaultID: leaderID + (i - 1)})
 	}
 	return followers
 }
@@ -89,10 +91,17 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 		TeamNumber: cfg.Team,
 		MotorCount: motors,
 		Aligned:    aligned,
-		Followers:  buildFollowers(motors),
+		LeaderID:   leaderID,
+		Followers:  buildFollowers(motors, leaderID),
 	}
 
-	gen := generator.New(tmpl.NewEmbeddedSource())
+	var source tmpl.TemplateSource
+	if cfg.TemplatesDir != "" {
+		source = tmpl.NewLocalSource(filepath.Join(root, cfg.TemplatesDir))
+	} else {
+		source = tmpl.NewEmbeddedSource()
+	}
+	gen := generator.New(source)
 	fmt.Printf("Generating %s subsystem (type: %s)...\n", name, subsystemType)
 	if err := gen.GenerateSubsystem(ctx, root); err != nil {
 		return err

@@ -15,6 +15,7 @@ type Config struct {
 	Package        string      `yaml:"package"`
 	Subsystems     []Subsystem `yaml:"subsystems,omitempty"`
 	Superstructure bool        `yaml:"superstructure,omitempty"`
+	TemplatesDir   string      `yaml:"templates_dir,omitempty"`
 }
 
 type Subsystem struct {

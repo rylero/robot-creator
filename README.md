@@ -41,9 +41,12 @@ robot-creator remove subsystem Shooter
 | Command | Description |
 |---|---|
 | `init --name <dir> --team <number>` | Clone the AKit template repo and initialize the project |
+| `init --no-clone --team <number>` | Initialize `robot-creator.yaml` in the current directory without cloning |
 | `add subsystem <Name> --type <type>` | Generate a 5-file AKit subsystem (see flags below) |
 | `add superstructure` | Generate a superstructure state machine (see flags below) |
 | `remove subsystem <Name>` | Delete generated files and remove from RobotContainer |
+| `remove superstructure` | Delete the superstructure directory and clear it from config |
+| `export templates [dir]` | Copy built-in templates to a local directory for customization |
 | `list types` | Show available subsystem types |
 | `list subsystems` | Show subsystems in the current project |
 | `version` | Print the installed version |
@@ -55,6 +58,7 @@ robot-creator remove subsystem Shooter
 | `--type` | (required) | Subsystem type |
 | `--motors` | 2 for arm/elevator, 1 otherwise | Number of TalonFX motors |
 | `--aligned` | `true` | Followers mechanically aligned to leader; pass `--aligned=false` if motors face opposite directions |
+| `--id` | `0` | Leader/motor CAN ID; followers get consecutive IDs (`--id 5` → leader=5, follower2=6, follower3=7) |
 
 ### `add superstructure` flags
 
@@ -69,10 +73,11 @@ States are mapped by index (`wanted[i]` → `active[i]`). If the lists have diff
 
 | Flag | Default | Description |
 |---|---|---|
-| `--name` | (required) | Project directory name |
+| `--name` | (required unless `--no-clone`) | Project directory name |
 | `--team` | (required) | FRC team number |
 | `--package` | `frc.robot` | Java package name |
 | `--repo` | `https://github.com/rylero/akit-robot-template` | AKit template repo to clone |
+| `--no-clone` | `false` | Skip git clone; write `robot-creator.yaml` into the current directory |
 
 ## Subsystem Types
 
@@ -123,6 +128,19 @@ robot-creator add subsystem Elevator --type elevator --motors 2 --aligned=false
 ```
 
 Generated code uses `follower2`, `follower3`... naming. Each follower gets its own CAN ID constant (`FOLLOWER_2_ID`, `FOLLOWER_3_ID`...) and supply current signal.
+
+## Custom Templates
+
+Export the built-in templates to edit them locally:
+
+```bash
+robot-creator export templates           # exports to ./templates/
+robot-creator export templates my-tmpls  # exports to ./my-tmpls/
+```
+
+After export, `robot-creator.yaml` is updated with `templates_dir: templates`. All subsequent `add subsystem` and `add superstructure` calls will use your local `.tmpl` files instead of the built-ins. Edit any `.java.tmpl` file — Go template syntax applies.
+
+To revert to built-ins, remove the `templates_dir` line from `robot-creator.yaml`.
 
 ## Template Repo
 
