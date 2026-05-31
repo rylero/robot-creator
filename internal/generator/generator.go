@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/template"
 
-	tmplpkg "github.com/ced4rtree/robot-creator/internal/template"
+	tmplpkg "github.com/rylero/robot-creator/internal/template"
 )
 
 type SubsystemContext struct {

@@ -1,4 +1,4 @@
-module github.com/ced4rtree/robot-creator
+module github.com/rylero/robot-creator
 
 go 1.25.7
 

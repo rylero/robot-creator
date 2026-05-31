@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ced4rtree/robot-creator/internal/generator"
-	tmpl "github.com/ced4rtree/robot-creator/internal/template"
+	"github.com/rylero/robot-creator/internal/generator"
+	tmpl "github.com/rylero/robot-creator/internal/template"
 )
 
 func TestGenerateSubsystem_Generic(t *testing.T) {

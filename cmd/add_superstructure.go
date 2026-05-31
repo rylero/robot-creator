@@ -9,8 +9,8 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
-	"github.com/ced4rtree/robot-creator/internal/config"
-	tmplpkg "github.com/ced4rtree/robot-creator/internal/template"
+	"github.com/rylero/robot-creator/internal/config"
+	tmplpkg "github.com/rylero/robot-creator/internal/template"
 )
 
 var addSuperstructureCmd = &cobra.Command{

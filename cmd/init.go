@@ -6,7 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/spf13/cobra"
-	"github.com/ced4rtree/robot-creator/internal/config"
+	"github.com/rylero/robot-creator/internal/config"
 )
 
 var (

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	tmpl "github.com/ced4rtree/robot-creator/internal/template"
+	tmpl "github.com/rylero/robot-creator/internal/template"
 )
 
 var listCmd = &cobra.Command{

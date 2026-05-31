@@ -1,6 +1,6 @@
 package main
 
-import "github.com/ced4rtree/robot-creator/cmd"
+import "github.com/rylero/robot-creator/cmd"
 
 func main() {
 	cmd.Execute()

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ced4rtree/robot-creator/internal/config"
+	"github.com/rylero/robot-creator/internal/config"
 )
 
 func TestLoad(t *testing.T) {

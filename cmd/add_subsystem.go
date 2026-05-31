@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/ced4rtree/robot-creator/internal/config"
-	"github.com/ced4rtree/robot-creator/internal/generator"
-	"github.com/ced4rtree/robot-creator/internal/injector"
-	tmpl "github.com/ced4rtree/robot-creator/internal/template"
+	"github.com/rylero/robot-creator/internal/config"
+	"github.com/rylero/robot-creator/internal/generator"
+	"github.com/rylero/robot-creator/internal/injector"
+	tmpl "github.com/rylero/robot-creator/internal/template"
 )
 
 var subsystemType string

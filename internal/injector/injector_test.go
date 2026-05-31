@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ced4rtree/robot-creator/internal/injector"
+	"github.com/rylero/robot-creator/internal/injector"
 )
 
 func loadFixture(t *testing.T) string {
