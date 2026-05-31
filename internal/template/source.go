@@ -1,7 +1,7 @@
 package template
 
 var validTypes = []string{
-	"flywheel", "pivot", "roller", "arm", "elevator", "turret", "generic",
+	"flywheel", "pivot", "roller", "arm", "elevator", "turret", "generic", "manipulator",
 }
 
 // TemplateSource abstracts where templates come from.

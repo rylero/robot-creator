@@ -11,12 +11,20 @@ import (
 	tmplpkg "github.com/rylero/robot-creator/internal/template"
 )
 
+type FollowerInfo struct {
+	Index     int // 2, 3, 4... (variable name suffix)
+	DefaultID int // 1, 2, 3... (default CAN ID)
+}
+
 type SubsystemContext struct {
 	Name       string
 	NameLower  string
 	Type       string
 	Package    string
 	TeamNumber int
+	MotorCount int
+	Aligned    bool
+	Followers  []FollowerInfo
 }
 
 var templateFiles = []string{

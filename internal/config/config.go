@@ -18,8 +18,10 @@ type Config struct {
 }
 
 type Subsystem struct {
-	Name string `yaml:"name"`
-	Type string `yaml:"type"`
+	Name    string `yaml:"name"`
+	Type    string `yaml:"type"`
+	Motors  int    `yaml:"motors,omitempty"`
+	Aligned bool   `yaml:"aligned,omitempty"`
 }
 
 func Load(root string) (*Config, error) {

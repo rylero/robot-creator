@@ -1,9 +1,9 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
 import static edu.wpi.first.units.Units.*;
+import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Current;
-import edu.wpi.first.units.measure.Distance;
-import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Voltage;
 import org.littletonrobotics.junction.AutoLog;
 
@@ -14,8 +14,8 @@ public interface {{.Name}}IO {
 {{- range .Followers}}
     public boolean follower{{.Index}}Connected = false;
 {{- end}}
-    public Distance position = Meters.of(0.0);
-    public LinearVelocity velocity = MetersPerSecond.of(0.0);
+    public Angle position = Rotations.of(0.0);
+    public AngularVelocity velocity = RotationsPerSecond.of(0.0);
     public Voltage appliedVoltage = Volts.of(0.0);
     public Current leaderSupplyCurrent = Amps.of(0.0);
 {{- range .Followers}}
@@ -25,7 +25,7 @@ public interface {{.Name}}IO {
 
   public default void updateInputs({{.Name}}IOInputs inputs) {}
 
-  public default void setPosition(Distance position) {}
+  public default void setPosition(Angle position) {}
 
   public default void setVoltage(Voltage volts) {}
 

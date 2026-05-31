@@ -2,11 +2,12 @@ package {{.Package}}.subsystems.{{.NameLower}};
 
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
+import com.ctre.phoenix6.signals.InvertedValue;
 {{- if gt .MotorCount 1}}
 import com.ctre.phoenix6.signals.MotorAlignmentValue;
 {{- end}}
 import static edu.wpi.first.units.Units.*;
-import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.Angle;
 import frc.robot.util.LoggedNetworkPIDFeedforwardGains;
 
 public class {{.Name}}Constants {
@@ -18,18 +19,19 @@ public class {{.Name}}Constants {
 {{- if gt .MotorCount 1}}
   public static final MotorAlignmentValue FOLLOWER_ALIGNMENT = MotorAlignmentValue.{{if .Aligned}}Aligned{{else}}OpposedToLeader{{end}};
 {{- end}}
-  public static final double GEARING = 5.0;
-  public static final double SPOOL_CIRCUMFERENCE_M = 0.05 * Math.PI; // TODO: measure spool
+  public static final double GEARING = 1.0;
+  public static final InvertedValue LEADER_DIRECTION = InvertedValue.CounterClockwise_Positive;
 
-  public static final Distance MAX_HEIGHT = Meters.of(1.0);
-  public static final Distance POSITION_TOLERANCE = Meters.of(0.01);
+  public static final Angle MIN_POSITION = Rotations.of(0.0);
+  public static final Angle MAX_POSITION = Rotations.of(10.0);
+  public static final Angle POSITION_TOLERANCE = Rotations.of(0.1);
 
   public static final LoggedNetworkPIDFeedforwardGains GAINS =
       new LoggedNetworkPIDFeedforwardGains(
-          5.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3, "{{.Name}}");
+          3.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.5, "{{.Name}}");
 
   public static final MotionMagicConfigs MOTION_MAGIC_CONFIGS =
       new MotionMagicConfigs()
-          .withMotionMagicCruiseVelocity(1.0)
-          .withMotionMagicAcceleration(3.0);
+          .withMotionMagicCruiseVelocity(RotationsPerSecond.of(2.0))
+          .withMotionMagicAcceleration(RotationsPerSecondPerSecond.of(5.0));
 }

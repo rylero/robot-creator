@@ -6,14 +6,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/rylero/robot-creator/internal/config"
 	"github.com/rylero/robot-creator/internal/generator"
 	"github.com/rylero/robot-creator/internal/injector"
 	tmpl "github.com/rylero/robot-creator/internal/template"
+	"github.com/spf13/cobra"
 )
 
 var subsystemType string
+var motorCount int
+var aligned bool
 
 var addSubsystemCmd = &cobra.Command{
 	Use:   "subsystem <Name>",
@@ -24,8 +26,33 @@ var addSubsystemCmd = &cobra.Command{
 
 func init() {
 	addCmd.AddCommand(addSubsystemCmd)
-	addSubsystemCmd.Flags().StringVarP(&subsystemType, "type", "t", "", "subsystem type (flywheel|pivot|roller|arm|elevator|turret|generic)")
+	addSubsystemCmd.Flags().StringVarP(&subsystemType, "type", "t", "", "subsystem type (flywheel|pivot|roller|arm|elevator|turret|generic|manipulator)")
+	addSubsystemCmd.Flags().IntVar(&motorCount, "motors", 0, "number of motors for arm/elevator/manipulator (default: 2 for arm/elevator, 1 for manipulator)")
+	addSubsystemCmd.Flags().BoolVar(&aligned, "aligned", true, "followers are mechanically aligned to leader (arm/elevator/manipulator with 2+ motors)")
 	addSubsystemCmd.MarkFlagRequired("type")
+}
+
+func resolveMotorCount(t string, flag int) int {
+	if flag > 0 {
+		return flag
+	}
+	switch t {
+	case "arm", "elevator":
+		return 2
+	default:
+		return 1
+	}
+}
+
+func buildFollowers(n int) []generator.FollowerInfo {
+	if n <= 1 {
+		return nil
+	}
+	followers := make([]generator.FollowerInfo, 0, n-1)
+	for i := 2; i <= n; i++ {
+		followers = append(followers, generator.FollowerInfo{Index: i, DefaultID: i - 1})
+	}
+	return followers
 }
 
 func runAddSubsystem(cmd *cobra.Command, args []string) error {
@@ -36,6 +63,9 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 
 	if !tmpl.IsValidType(subsystemType) {
 		return fmt.Errorf("unknown type %q. Run 'robot-creator list types' for valid types", subsystemType)
+	}
+	if motorCount < 0 {
+		return fmt.Errorf("--motors must be >= 1")
 	}
 
 	root, err := config.FindRoot()
@@ -50,12 +80,16 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("%s already exists. Delete it from robot-creator.yaml to regenerate", name)
 	}
 
+	motors := resolveMotorCount(subsystemType, motorCount)
 	ctx := generator.SubsystemContext{
 		Name:       name,
 		NameLower:  strings.ToLower(name),
 		Type:       subsystemType,
 		Package:    cfg.Package,
 		TeamNumber: cfg.Team,
+		MotorCount: motors,
+		Aligned:    aligned,
+		Followers:  buildFollowers(motors),
 	}
 
 	gen := generator.New(tmpl.NewEmbeddedSource())
@@ -82,7 +116,13 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	cfg.Subsystems = append(cfg.Subsystems, config.Subsystem{Name: name, Type: subsystemType})
+	sub := config.Subsystem{Name: name, Type: subsystemType}
+	switch subsystemType {
+	case "arm", "elevator", "manipulator":
+		sub.Motors = motors
+		sub.Aligned = aligned
+	}
+	cfg.Subsystems = append(cfg.Subsystems, sub)
 	if err := config.Save(root, cfg); err != nil {
 		return fmt.Errorf("updating robot-creator.yaml: %w", err)
 	}

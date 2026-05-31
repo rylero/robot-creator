@@ -9,7 +9,7 @@ import edu.wpi.first.wpilibj.simulation.ElevatorSim;
 public class {{.Name}}IOSim implements {{.Name}}IO {
   private final ElevatorSim sim =
       new ElevatorSim(
-          DCMotor.getKrakenX60(2),
+          DCMotor.getKrakenX60({{.MotorCount}}),
           {{.Name}}Constants.GEARING,
           5.0,
           {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M / (2 * Math.PI),
@@ -24,12 +24,16 @@ public class {{.Name}}IOSim implements {{.Name}}IO {
     sim.setInputVoltage(appliedVolts);
     sim.update(0.02);
     inputs.leaderConnected = true;
-    inputs.followerConnected = true;
+{{- range .Followers}}
+    inputs.follower{{.Index}}Connected = true;
+{{- end}}
     inputs.position = Meters.of(sim.getPositionMeters());
     inputs.velocity = MetersPerSecond.of(sim.getVelocityMetersPerSecond());
     inputs.appliedVoltage = Volts.of(appliedVolts);
-    inputs.leaderSupplyCurrent = Amps.of(sim.getCurrentDrawAmps() / 2.0);
-    inputs.followerSupplyCurrent = Amps.of(sim.getCurrentDrawAmps() / 2.0);
+    inputs.leaderSupplyCurrent = Amps.of(sim.getCurrentDrawAmps() / {{.MotorCount}}.0);
+{{- range .Followers}}
+    inputs.follower{{.Index}}SupplyCurrent = Amps.of(sim.getCurrentDrawAmps() / {{$.MotorCount}}.0);
+{{- end}}
   }
 
   @Override

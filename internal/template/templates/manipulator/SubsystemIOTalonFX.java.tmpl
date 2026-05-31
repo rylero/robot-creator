@@ -16,8 +16,6 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Current;
-import edu.wpi.first.units.measure.Distance;
-import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
@@ -52,16 +50,18 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
   public {{.Name}}IOTalonFX() {
     var config = new TalonFXConfiguration();
     config.Feedback.SensorToMechanismRatio = {{.Name}}Constants.GEARING;
+    config.MotorOutput.Inverted = {{.Name}}Constants.LEADER_DIRECTION;
     config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
     config.Slot0 = {{.Name}}Constants.GAINS.toSlot0Configs();
     config.MotionMagic = {{.Name}}Constants.MOTION_MAGIC_CONFIGS;
     config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
     config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
-        {{.Name}}Constants.MAX_HEIGHT.in(Meters) / {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M;
+        {{.Name}}Constants.MAX_POSITION.in(Rotations);
     config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
-    config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = 0;
+    config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
+        {{.Name}}Constants.MIN_POSITION.in(Rotations);
     config.CurrentLimits.StatorCurrentLimitEnable = true;
-    config.CurrentLimits.StatorCurrentLimit = 60;
+    config.CurrentLimits.StatorCurrentLimit = 40;
     AlertUtils.processCriticalAlert(
         configAlert, !tryUntilOk(5, () -> leader.getConfigurator().apply(config)));
 {{- range .Followers}}
@@ -107,10 +107,8 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
 {{- range .Followers}}
     inputs.follower{{.Index}}Connected = follower{{.Index}}Current.getStatus().isOK();
 {{- end}}
-    double rotations = position.getValue().in(Rotations);
-    inputs.position = Meters.of(rotations * {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M);
-    inputs.velocity = MetersPerSecond.of(
-        velocity.getValue().in(RotationsPerSecond) * {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M);
+    inputs.position = position.getValue();
+    inputs.velocity = velocity.getValue();
     inputs.appliedVoltage = appliedVoltage.getValue();
     inputs.leaderSupplyCurrent = leaderCurrent.getValue();
 {{- range .Followers}}
@@ -119,9 +117,8 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
   }
 
   @Override
-  public void setPosition(Distance position) {
-    double rotations = position.in(Meters) / {{.Name}}Constants.SPOOL_CIRCUMFERENCE_M;
-    leader.setControl(positionRequest.withPosition(rotations));
+  public void setPosition(Angle position) {
+    leader.setControl(positionRequest.withPosition(position));
   }
 
   @Override

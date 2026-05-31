@@ -36,12 +36,20 @@ robot-creator remove subsystem Shooter
 | Command | Description |
 |---|---|
 | `init --name <dir> --team <number>` | Clone the AKit template repo and initialize the project |
-| `add subsystem <Name> --type <type>` | Generate a 5-file AKit subsystem |
+| `add subsystem <Name> --type <type>` | Generate a 5-file AKit subsystem (see flags below) |
 | `add superstructure` | Generate a superstructure state machine scaffold |
 | `remove subsystem <Name>` | Delete generated files and remove from RobotContainer |
 | `list types` | Show available subsystem types |
 | `list subsystems` | Show subsystems in the current project |
 | `version` | Print the installed version |
+
+### `add subsystem` flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--type` | (required) | Subsystem type |
+| `--motors` | 2 for arm/elevator, 1 otherwise | Number of TalonFX motors |
+| `--aligned` | `true` | Followers mechanically aligned to leader (set `false` if motors face opposite directions) |
 
 ### `init` flags
 
@@ -59,10 +67,11 @@ robot-creator remove subsystem Shooter
 | `flywheel` | MotionMagicVelocityVoltage | 1 |
 | `pivot` | MotionMagicVoltage + soft limits | 1 |
 | `roller` | VoltageOut with velocity monitoring | 1 |
-| `arm` | MotionMagicVoltage + soft limits + follower | 2 |
-| `elevator` | MotionMagicVoltage + soft limits + follower, meters | 2 |
+| `arm` | MotionMagicVoltage + soft limits | configurable (default 2) |
+| `elevator` | MotionMagicVoltage + soft limits, meters | configurable (default 2) |
 | `turret` | MotionMagicVoltage + ContinuousWrap | 1 |
 | `generic` | VoltageOut | 1 |
+| `manipulator` | MotionMagicVoltage position control | configurable |
 
 ## What Gets Generated
 
