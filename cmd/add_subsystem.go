@@ -29,7 +29,7 @@ func init() {
 }
 
 func runAddSubsystem(cmd *cobra.Command, args []string) error {
-	name := args[0]
+	name := strings.ToUpper(args[0][:1]) + args[0][1:]
 
 	if !tmpl.IsValidType(subsystemType) {
 		return fmt.Errorf("unknown type %q. Run 'robot-creator list types' for valid types", subsystemType)

@@ -1,4 +1,8 @@
 
+# Binaries
+*.exe
+/robot-creator
+
 # AI assistant artifacts
 state.md
 session-log.md
