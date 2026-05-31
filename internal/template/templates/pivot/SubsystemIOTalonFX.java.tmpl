@@ -1,0 +1,76 @@
+package {{.Package}}.subsystems.{{.NameLower}};
+
+import static edu.wpi.first.units.Units.*;
+import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.MotionMagicPositionVoltage;
+import com.ctre.phoenix6.controls.VoltageOut;
+import com.ctre.phoenix6.hardware.TalonFX;
+import com.ctre.phoenix6.signals.NeutralModeValue;
+import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.AngularVelocity;
+import edu.wpi.first.units.measure.Current;
+import edu.wpi.first.units.measure.Voltage;
+
+public class {{.Name}}IOTalonFX implements {{.Name}}IO {
+  private final TalonFX motor =
+      new TalonFX({{.Name}}Constants.MOTOR_ID, {{.Name}}Constants.CAN_BUS);
+  private final StatusSignal<Angle> position;
+  private final StatusSignal<AngularVelocity> velocity;
+  private final StatusSignal<Current> supplyCurrent;
+  private final StatusSignal<Voltage> appliedVoltage;
+  private final MotionMagicPositionVoltage positionRequest =
+      new MotionMagicPositionVoltage(0).withSlot(0);
+  private final VoltageOut voltageRequest = new VoltageOut(0);
+
+  public {{.Name}}IOTalonFX() {
+    var config = new TalonFXConfiguration();
+    config.Feedback.SensorToMechanismRatio = {{.Name}}Constants.GEARING;
+    config.MotorOutput.Inverted = {{.Name}}Constants.MOTOR_DIRECTION;
+    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    config.Slot0 = {{.Name}}Constants.GAINS.toSlot0Configs();
+    config.MotionMagic = {{.Name}}Constants.MOTION_MAGIC_CONFIGS;
+    config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
+        {{.Name}}Constants.MAX_ANGLE.in(Rotations);
+    config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
+        {{.Name}}Constants.MIN_ANGLE.in(Rotations);
+    config.CurrentLimits.StatorCurrentLimitEnable = true;
+    config.CurrentLimits.StatorCurrentLimit = 40;
+    motor.getConfigurator().apply(config);
+
+    position = motor.getPosition();
+    velocity = motor.getVelocity();
+    supplyCurrent = motor.getSupplyCurrent();
+    appliedVoltage = motor.getMotorVoltage();
+    position.setUpdateFrequency(50);
+    velocity.setUpdateFrequency(50);
+    supplyCurrent.setUpdateFrequency(20);
+    appliedVoltage.setUpdateFrequency(20);
+  }
+
+  @Override
+  public void updateInputs({{.Name}}IOInputs inputs) {
+    inputs.motorConnected = position.getStatus().isOK();
+    inputs.position = position.getValue();
+    inputs.velocity = velocity.getValue();
+    inputs.supplyCurrent = supplyCurrent.getValue();
+    inputs.appliedVoltage = appliedVoltage.getValue();
+  }
+
+  @Override
+  public void setAngle(Angle angle) {
+    motor.setControl(positionRequest.withPosition(angle.in(Rotations)));
+  }
+
+  @Override
+  public void setVoltage(Voltage volts) {
+    motor.setControl(voltageRequest.withOutput(volts));
+  }
+
+  @Override
+  public void setBrakeMode(boolean brake) {
+    motor.setNeutralMode(brake ? NeutralModeValue.Brake : NeutralModeValue.Coast);
+  }
+}
