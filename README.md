@@ -21,8 +21,13 @@ robot-creator init --name MyRobot --team 1234
 
 cd MyRobot
 
-# Generate a subsystem
+# Generate subsystems
 robot-creator add subsystem Shooter --type flywheel
+robot-creator add subsystem Arm --type arm --motors 3
+robot-creator add subsystem Wrist --type manipulator
+
+# Generate a superstructure state machine
+robot-creator add superstructure --wanted IDLE,INTAKE,SHOOT --active IDLE,INTAKING,SHOOTING
 
 # See what's been added
 robot-creator list subsystems
@@ -37,7 +42,7 @@ robot-creator remove subsystem Shooter
 |---|---|
 | `init --name <dir> --team <number>` | Clone the AKit template repo and initialize the project |
 | `add subsystem <Name> --type <type>` | Generate a 5-file AKit subsystem (see flags below) |
-| `add superstructure` | Generate a superstructure state machine scaffold |
+| `add superstructure` | Generate a superstructure state machine (see flags below) |
 | `remove subsystem <Name>` | Delete generated files and remove from RobotContainer |
 | `list types` | Show available subsystem types |
 | `list subsystems` | Show subsystems in the current project |
@@ -49,7 +54,16 @@ robot-creator remove subsystem Shooter
 |---|---|---|
 | `--type` | (required) | Subsystem type |
 | `--motors` | 2 for arm/elevator, 1 otherwise | Number of TalonFX motors |
-| `--aligned` | `true` | Followers mechanically aligned to leader (set `false` if motors face opposite directions) |
+| `--aligned` | `true` | Followers mechanically aligned to leader; pass `--aligned=false` if motors face opposite directions |
+
+### `add superstructure` flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--wanted` | `IDLE` | Comma-separated `WantedState` enum values |
+| `--active` | `IDLE` | Comma-separated `CurrentState` enum values |
+
+States are mapped by index (`wanted[i]` → `active[i]`). If the lists have different lengths, extra wanted states fall back to `active[0]`. State names are uppercased automatically.
 
 ### `init` flags
 
@@ -67,11 +81,13 @@ robot-creator remove subsystem Shooter
 | `flywheel` | MotionMagicVelocityVoltage | 1 |
 | `pivot` | MotionMagicVoltage + soft limits | 1 |
 | `roller` | VoltageOut with velocity monitoring | 1 |
-| `arm` | MotionMagicVoltage + soft limits | configurable (default 2) |
-| `elevator` | MotionMagicVoltage + soft limits, meters | configurable (default 2) |
+| `arm` | MotionMagicVoltage + soft limits (angle) | configurable (default 2) |
+| `elevator` | MotionMagicVoltage + soft limits (meters) | configurable (default 2) |
 | `turret` | MotionMagicVoltage + ContinuousWrap | 1 |
 | `generic` | VoltageOut | 1 |
-| `manipulator` | MotionMagicVoltage position control | configurable |
+| `manipulator` | MotionMagicVoltage position control (rotations) | configurable (default 1) |
+
+`arm` and `elevator` use `SingleJointedArmSim`/`ElevatorSim` for physics-accurate simulation. `manipulator` uses a simpler `FlywheelSim` + velocity integration — suitable for wrists, claws, or any position-controlled mechanism where arm inertia is unknown.
 
 ## What Gets Generated
 
@@ -87,6 +103,26 @@ src/main/java/frc/robot/subsystems/shooter/
 ```
 
 `RobotContainer.java` is updated automatically with imports, a field declaration, and instantiation in each switch case (`REAL`, `SIM`, `default`). If the file cannot be parsed, the required lines are printed for manual insertion.
+
+For `robot-creator add superstructure --wanted IDLE,INTAKE,SHOOT --active IDLE,INTAKING,SHOOTING`:
+
+```
+src/main/java/frc/robot/subsystems/superstructure/
+  Superstructure.java     # State machine with WantedState/CurrentState enums,
+                          # handleStateTransitions(), applyState(), and command methods
+```
+
+## Multi-Motor Example
+
+```bash
+# 3-motor arm, all aligned
+robot-creator add subsystem Arm --type arm --motors 3
+
+# 2-motor elevator with opposed followers (motors face each other)
+robot-creator add subsystem Elevator --type elevator --motors 2 --aligned=false
+```
+
+Generated code uses `follower2`, `follower3`... naming. Each follower gets its own CAN ID constant (`FOLLOWER_2_ID`, `FOLLOWER_3_ID`...) and supply current signal.
 
 ## Template Repo
 
