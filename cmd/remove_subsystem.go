@@ -23,6 +23,9 @@ func init() {
 }
 
 func runRemoveSubsystem(cmd *cobra.Command, args []string) error {
+	if err := validateSubsystemName(args[0]); err != nil {
+		return err
+	}
 	name := strings.ToUpper(args[0][:1]) + args[0][1:]
 
 	root, err := config.FindRoot()
