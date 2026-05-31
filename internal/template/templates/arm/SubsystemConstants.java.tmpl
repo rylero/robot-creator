@@ -3,6 +3,7 @@ package {{.Package}}.subsystems.{{.NameLower}};
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
 import com.ctre.phoenix6.signals.InvertedValue;
+import com.ctre.phoenix6.signals.MotorAlignmentValue;
 import static edu.wpi.first.units.Units.*;
 import edu.wpi.first.units.measure.Angle;
 import frc.robot.util.LoggedNetworkPIDFeedforwardGains;
@@ -11,7 +12,7 @@ public class {{.Name}}Constants {
   public static final CANBus CAN_BUS = new CANBus("canivore");
   public static final int LEADER_ID = 0;   // TODO: set CAN IDs
   public static final int FOLLOWER_ID = 1;
-  public static final boolean FOLLOWER_OPPOSED = false;
+  public static final MotorAlignmentValue FOLLOWER_ALIGNMENT = MotorAlignmentValue.Aligned;
   public static final double GEARING = 1.0;
   public static final InvertedValue LEADER_DIRECTION = InvertedValue.CounterClockwise_Positive;
 
