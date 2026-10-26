@@ -35,6 +35,14 @@ public class {{.Name}} implements Mechanism, AutoCloseable {
           "{{$.Name}} follower {{.Index}} disconnected.",
           Level.HIGH);
 {{- end}}
+{{- if .Followers}}
+  private final Alert failoverAlert =
+      new Alert(
+          "{{.Name}}",
+          "failover",
+          "{{.Name}} lead motor is out; a follower is leading.",
+          Level.HIGH);
+{{- end}}
 
   public {{.Name}}({{.Name}}IO io) {
     this.io = io;
@@ -49,6 +57,9 @@ public class {{.Name}} implements Mechanism, AutoCloseable {
     motorDisconnectedAlert.set(!inputs.motorConnected);
 {{- range .Followers}}
     follower{{.Index}}DisconnectedAlert.set(!inputs.follower{{.Index}}Connected);
+{{- end}}
+{{- if .Followers}}
+    failoverAlert.set(inputs.leader != 1);
 {{- end}}
 
     stalled =
@@ -97,6 +108,9 @@ public class {{.Name}} implements Mechanism, AutoCloseable {
     motorDisconnectedAlert.close();
 {{- range .Followers}}
     follower{{.Index}}DisconnectedAlert.close();
+{{- end}}
+{{- if .Followers}}
+    failoverAlert.close();
 {{- end}}
   }
 

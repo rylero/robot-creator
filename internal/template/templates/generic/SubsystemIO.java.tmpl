@@ -18,6 +18,10 @@ public interface {{.Name}}IO {
 {{- range .Followers}}
     public boolean follower{{.Index}}Connected;
 {{- end}}
+{{- if .Followers}}
+    /** Motor currently leading: 1 is the configured leader, n is follower n. */
+    public int leader = 1;
+{{- end}}
     public Angle position = Degrees.of(0.0);
     public AngularVelocity velocity = RotationsPerSecond.of(0.0);
     public Voltage appliedVoltage = Volts.of(0.0);

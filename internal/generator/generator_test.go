@@ -77,14 +77,30 @@ func TestGenerateSubsystem_AllTypes(t *testing.T) {
 							t.Errorf("ThingConstants.java missing %q", want)
 						}
 					}
-					if strings.Count(talon, "new Follower(") != 2 {
-						t.Error("ThingIOTalonFX.java should configure 2 followers")
+					for _, want := range []string{
+						"new Motor(new TalonFX(ThingConstants.FOLLOWER_2_ID, ThingConstants.CAN_BUS)),",
+						"new Motor(new TalonFX(ThingConstants.FOLLOWER_3_ID, ThingConstants.CAN_BUS)),",
+						"int next = nextLeader(leader, connected);",
+						"inputs.leader = leader + 1;",
+						"inputs.follower3Connected = connected[3 - 1];",
+						"lastRequest.run();",
+					} {
+						if !strings.Contains(talon, want) {
+							t.Errorf("ThingIOTalonFX.java missing %q", want)
+						}
 					}
-					if !strings.Contains(mech, "follower3DisconnectedAlert") {
-						t.Error("Thing.java missing follower alert")
+					if !strings.Contains(consts, "CONNECTION_DEBOUNCE_SECONDS") {
+						t.Error("ThingConstants.java missing CONNECTION_DEBOUNCE_SECONDS")
 					}
-				} else if strings.Contains(talon, "Follower") || strings.Contains(consts, "FOLLOWER") {
-					t.Error("single-motor mechanism references followers")
+					if !strings.Contains(mech, "follower3DisconnectedAlert") || !strings.Contains(mech, "failoverAlert.set(inputs.leader != 1);") {
+						t.Error("Thing.java missing follower or failover alert")
+					}
+				} else {
+					for name, s := range map[string]string{"IOTalonFX": talon, "Constants": consts, "": mech} {
+						if strings.Contains(s, "Follower") || strings.Contains(s, "FOLLOWER") || strings.Contains(s, "failover") {
+							t.Errorf("single-motor Thing%s.java references followers", name)
+						}
+					}
 				}
 			})
 		}

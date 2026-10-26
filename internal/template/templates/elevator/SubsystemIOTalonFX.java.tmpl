@@ -1,5 +1,7 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
+{{- if not .Followers}}
+
 import static {{.Package}}.util.PhoenixUtil.tryUntilOk;
 import static org.wpilib.units.Units.Meters;
 import static org.wpilib.units.Units.MetersPerSecond;
@@ -9,9 +11,6 @@ import static org.wpilib.units.Units.RotationsPerSecond;
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.StatusSignalCollection;
 import com.ctre.phoenix6.configs.MotorOutputConfigs;
-{{- if .Followers}}
-import com.ctre.phoenix6.controls.Follower;
-{{- end}}
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
@@ -24,9 +23,6 @@ import org.wpilib.units.measure.Voltage;
 
 public class {{.Name}}IOTalonFX implements {{.Name}}IO {
   private final TalonFX motor;
-{{- range .Followers}}
-  private final TalonFX follower{{.Index}};
-{{- end}}
 
   private final MotionMagicVoltage positionRequest = new MotionMagicVoltage(0);
   private final VoltageOut voltageRequest = new VoltageOut(0);
@@ -36,35 +32,19 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
   private final StatusSignal<AngularVelocity> velocity;
   private final StatusSignal<Voltage> appliedVoltage;
   private final StatusSignal<Current> supplyCurrent;
-{{- range .Followers}}
-  private final StatusSignal<Current> follower{{.Index}}SupplyCurrent;
-{{- end}}
 
   public {{.Name}}IOTalonFX() {
     motor = new TalonFX({{.Name}}Constants.MOTOR_ID, {{.Name}}Constants.CAN_BUS);
-{{- range .Followers}}
-    follower{{.Index}} = new TalonFX({{$.Name}}Constants.FOLLOWER_{{.Index}}_ID, {{$.Name}}Constants.CAN_BUS);
-{{- end}}
 
     var config = {{.Name}}Constants.config();
     tryUntilOk(5, () -> motor.getConfigurator().apply(config, 0.25));
-{{- range .Followers}}
-    tryUntilOk(5, () -> follower{{.Index}}.getConfigurator().apply(config, 0.25));
-    follower{{.Index}}.setControl(
-        new Follower({{$.Name}}Constants.MOTOR_ID, {{$.Name}}Constants.FOLLOWER_ALIGNMENT));
-{{- end}}
 
     position = motor.getPosition();
     velocity = motor.getVelocity();
     appliedVoltage = motor.getMotorVoltage();
     supplyCurrent = motor.getSupplyCurrent();
-{{- range .Followers}}
-    follower{{.Index}}SupplyCurrent = follower{{.Index}}.getSupplyCurrent();
-{{- end}}
 
-    signals =
-        new StatusSignalCollection(
-            position, velocity, appliedVoltage, supplyCurrent{{range .Followers}}, follower{{.Index}}SupplyCurrent{{end}});
+    signals = new StatusSignalCollection(position, velocity, appliedVoltage, supplyCurrent);
   }
 
   @Override
@@ -72,9 +52,6 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
     signals.refreshAll();
 
     inputs.motorConnected = motor.isConnected();
-{{- range .Followers}}
-    inputs.follower{{.Index}}Connected = follower{{.Index}}.isConnected();
-{{- end}}
     inputs.position =
         Meters.of(
             position.getValue().in(Rotations) * {{.Name}}Constants.METERS_PER_DRUM_ROTATION);
@@ -84,16 +61,12 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
                 * {{.Name}}Constants.METERS_PER_DRUM_ROTATION);
     inputs.appliedVoltage = appliedVoltage.getValue();
     inputs.supplyCurrent = supplyCurrent.getValue();
-{{- range .Followers}}
-    inputs.follower{{.Index}}SupplyCurrent = follower{{.Index}}SupplyCurrent.getValue();
-{{- end}}
   }
 
   @Override
   public void setPosition(Distance height) {
     motor.setControl(
-        positionRequest.withPosition(
-            height.in(Meters) / {{.Name}}Constants.METERS_PER_DRUM_ROTATION));
+        positionRequest.withPosition(height.in(Meters) / {{.Name}}Constants.METERS_PER_DRUM_ROTATION));
   }
 
   @Override
@@ -103,11 +76,7 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
 
   @Override
   public void setBrakeMode(boolean brake) {
-    var neutralMode = brake ? NeutralModeValue.Brake : NeutralModeValue.Coast;
-    applyNeutralMode(motor, neutralMode);
-{{- range .Followers}}
-    applyNeutralMode(follower{{.Index}}, neutralMode);
-{{- end}}
+    applyNeutralMode(motor, brake ? NeutralModeValue.Brake : NeutralModeValue.Coast);
   }
 
   private static void applyNeutralMode(TalonFX talon, NeutralModeValue neutralMode) {
@@ -117,3 +86,186 @@ public class {{.Name}}IOTalonFX implements {{.Name}}IO {
     talon.getConfigurator().apply(output);
   }
 }
+{{- else}}
+
+import static {{.Package}}.util.PhoenixUtil.tryUntilOk;
+import static org.wpilib.units.Units.Meters;
+import static org.wpilib.units.Units.MetersPerSecond;
+import static org.wpilib.units.Units.Rotations;
+import static org.wpilib.units.Units.RotationsPerSecond;
+
+import com.ctre.phoenix6.BaseStatusSignal;
+import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.configs.MotorOutputConfigs;
+import com.ctre.phoenix6.controls.Follower;
+import com.ctre.phoenix6.controls.MotionMagicVoltage;
+import com.ctre.phoenix6.controls.VoltageOut;
+import com.ctre.phoenix6.hardware.TalonFX;
+import com.ctre.phoenix6.signals.InvertedValue;
+import com.ctre.phoenix6.signals.MotorAlignmentValue;
+import com.ctre.phoenix6.signals.NeutralModeValue;
+import org.wpilib.math.filter.Debouncer;
+import org.wpilib.units.measure.Angle;
+import org.wpilib.units.measure.AngularVelocity;
+import org.wpilib.units.measure.Current;
+import org.wpilib.units.measure.Distance;
+import org.wpilib.units.measure.Voltage;
+
+/**
+ * Leader plus followers with failover: if the leading motor drops off the bus, the first connected
+ * motor takes over, the others follow it, and the last request is re-sent to it.
+ */
+public class {{.Name}}IOTalonFX implements {{.Name}}IO {
+  private record Motor(
+      TalonFX talon, StatusSignal<Angle> position, StatusSignal<AngularVelocity> velocity, StatusSignal<Voltage> appliedVoltage, StatusSignal<Current> supplyCurrent, Debouncer connectedDebounce) {
+    Motor(TalonFX talon) {
+      this(
+          talon, talon.getPosition(), talon.getVelocity(), talon.getMotorVoltage(), talon.getSupplyCurrent(), new Debouncer({{.Name}}Constants.CONNECTION_DEBOUNCE_SECONDS, Debouncer.DebounceType.FALLING));
+    }
+
+    BaseStatusSignal[] signals() {
+      return new BaseStatusSignal[] {position(), velocity(), appliedVoltage(), supplyCurrent()};
+    }
+  }
+
+  /** Index 0 is the configured leader, then follower 2, 3... */
+  private final Motor[] motors;
+
+  private final boolean[] connected;
+  private final BaseStatusSignal[] signals;
+  private int leader;
+
+  private final MotionMagicVoltage positionRequest = new MotionMagicVoltage(0);
+  private final VoltageOut voltageRequest = new VoltageOut(0);
+
+  /** Re-sends the latest request; run again on whichever motor leads after a failover. */
+  private Runnable lastRequest = () -> {};
+
+  public {{.Name}}IOTalonFX() {
+    motors =
+        new Motor[] {
+          new Motor(new TalonFX({{.Name}}Constants.MOTOR_ID, {{.Name}}Constants.CAN_BUS)),
+{{- range .Followers}}
+          new Motor(new TalonFX({{$.Name}}Constants.FOLLOWER_{{.Index}}_ID, {{$.Name}}Constants.CAN_BUS)),
+{{- end}}
+        };
+    connected = new boolean[motors.length];
+    signals = new BaseStatusSignal[motors.length * 4];
+
+    for (int i = 0; i < motors.length; i++) {
+      var talon = motors[i].talon();
+      var config = {{.Name}}Constants.config();
+      if (i > 0 && {{.Name}}Constants.FOLLOWER_ALIGNMENT == MotorAlignmentValue.Opposed) {
+        // Opposed followers invert so every motor reads and takes setpoints in one frame,
+        // which lets any of them lead.
+        config.MotorOutput.Inverted =
+            config.MotorOutput.Inverted == InvertedValue.Clockwise_Positive
+                ? InvertedValue.CounterClockwise_Positive
+                : InvertedValue.Clockwise_Positive;
+      }
+      tryUntilOk(5, () -> talon.getConfigurator().apply(config, 0.25));
+      System.arraycopy(motors[i].signals(), 0, signals, i * 4, 4);
+      connected[i] = true;
+    }
+    applyFollowers();
+  }
+
+  @Override
+  public void updateInputs({{.Name}}Inputs inputs) {
+    BaseStatusSignal.refreshAll(signals);
+
+    for (int i = 0; i < motors.length; i++) {
+      connected[i] = motors[i].connectedDebounce().calculate(motors[i].talon().isConnected());
+    }
+    int next = nextLeader(leader, connected);
+    if (next != leader) {
+      leader = next;
+      applyFollowers();
+      lastRequest.run();
+    }
+
+    inputs.motorConnected = connected[0];
+{{- range .Followers}}
+    inputs.follower{{.Index}}Connected = connected[{{.Index}} - 1];
+{{- end}}
+    inputs.leader = leader + 1;
+    inputs.position =
+        Meters.of(
+            motors[leader].position().getValue().in(Rotations) * {{.Name}}Constants.METERS_PER_DRUM_ROTATION);
+    inputs.velocity =
+        MetersPerSecond.of(
+            motors[leader].velocity().getValue().in(RotationsPerSecond)
+                * {{.Name}}Constants.METERS_PER_DRUM_ROTATION);
+    inputs.appliedVoltage = motors[leader].appliedVoltage().getValue();
+    inputs.supplyCurrent = motors[0].supplyCurrent().getValue();
+{{- range .Followers}}
+    inputs.follower{{.Index}}SupplyCurrent = motors[{{.Index}} - 1].supplyCurrent().getValue();
+{{- end}}
+  }
+
+  @Override
+  public void setPosition(Distance height) {
+    send(
+        () ->
+            leader()
+                .setControl(
+                    positionRequest.withPosition(
+                        height.in(Meters) / {{.Name}}Constants.METERS_PER_DRUM_ROTATION)));
+  }
+
+  @Override
+  public void setVoltage(Voltage voltage) {
+    send(() -> leader().setControl(voltageRequest.withOutput(voltage)));
+  }
+
+  @Override
+  public void setBrakeMode(boolean brake) {
+    var neutralMode = brake ? NeutralModeValue.Brake : NeutralModeValue.Coast;
+    for (var motor : motors) {
+      applyNeutralMode(motor.talon(), neutralMode);
+    }
+  }
+
+  /** Sticky: keep the current leader while connected, else hand off to the first connected motor. */
+  static int nextLeader(int current, boolean[] connected) {
+    if (connected[current]) {
+      return current;
+    }
+    for (int i = 0; i < connected.length; i++) {
+      if (connected[i]) {
+        return i;
+      }
+    }
+    return current;
+  }
+
+  private TalonFX leader() {
+    return motors[leader].talon();
+  }
+
+  private void send(Runnable request) {
+    lastRequest = request;
+    request.run();
+  }
+
+  private void applyFollowers() {
+    for (int i = 0; i < motors.length; i++) {
+      if (i != leader) {
+        motors[i].talon().setControl(new Follower(leader().getDeviceID(), alignment(i, leader)));
+      }
+    }
+  }
+
+  /** The configured leader is FOLLOWER_ALIGNMENT to every follower; followers align to each other. */
+  private static MotorAlignmentValue alignment(int a, int b) {
+    return (a == 0) == (b == 0) ? MotorAlignmentValue.Aligned : {{.Name}}Constants.FOLLOWER_ALIGNMENT;
+  }
+
+  private static void applyNeutralMode(TalonFX talon, NeutralModeValue neutralMode) {
+    var output = new MotorOutputConfigs();
+    talon.getConfigurator().refresh(output);
+    output.NeutralMode = neutralMode;
+    talon.getConfigurator().apply(output);
+  }
+}
+{{- end}}

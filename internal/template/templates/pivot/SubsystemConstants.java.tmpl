@@ -28,6 +28,9 @@ public final class {{.Name}}Constants {
   public static final InvertedValue INVERTED = InvertedValue.CounterClockwise_Positive;
 {{- if .Followers}}
   public static final MotorAlignmentValue FOLLOWER_ALIGNMENT = MotorAlignmentValue.{{if .Aligned}}Aligned{{else}}Opposed{{end}};
+
+  /** How long a motor must be off the bus before a follower takes over. */
+  public static final double CONNECTION_DEBOUNCE_SECONDS = 0.5;
 {{- end}}
 
   /** Motor rotations per pivot rotation. */

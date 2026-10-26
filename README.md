@@ -84,6 +84,17 @@ robot-creator remove subsystem Shooter
 
 Every mechanism `implements Mechanism, AutoCloseable` and sets `idle()` (0 V) as its default command. `hold(...)` runs until interrupted; `moveTo(...)` finishes once within tolerance, after which the default command takes over, so use `hold` when a mechanism must stay put. `hold`, `spin`, and `runVoltage` also accept a `Supplier`.
 
+### Lead/follower failover
+
+Mechanisms with followers (`--motors 2` or more) keep running if the leading motor drops off the CAN bus:
+
+- When the leader has been disconnected for `CONNECTION_DEBOUNCE_SECONDS` (0.5 s), the first connected motor takes over. The others re-follow it, and the last request (position, velocity or voltage) is re-sent to it.
+- Leadership is sticky: when the original leader comes back it follows the new leader rather than taking over again.
+- Opposed followers get the opposite `Inverted` config, so every motor reads and accepts setpoints in the same direction. Position control and soft limits therefore stay correct whichever motor leads.
+- The inputs log `leader` (1 = configured leader, n = follower n), and the mechanism raises a `failover` alert while a follower is leading.
+
+Single-motor mechanisms don't get any of this code.
+
 Simulation uses WPILib plants: `SingleJointedArmSim` for arm/pivot, `ElevatorSim` for elevator, and the project's `VelocityPlant` for everything else.
 
 ## What Gets Generated
