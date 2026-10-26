@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/rylero/robot-creator/internal/config"
+	"github.com/rylero/robot-creator/v3/internal/config"
+	"github.com/rylero/robot-creator/v3/internal/generator"
+	"github.com/rylero/robot-creator/v3/internal/injector"
 	"github.com/spf13/cobra"
 )
 
@@ -22,11 +23,7 @@ func init() {
 }
 
 func runRemoveSuperstructure(cmd *cobra.Command, args []string) error {
-	root, err := config.FindRoot()
-	if err != nil {
-		return err
-	}
-	cfg, err := config.Load(root)
+	root, cfg, err := loadProject()
 	if err != nil {
 		return err
 	}
@@ -34,12 +31,28 @@ func runRemoveSuperstructure(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no superstructure found in robot-creator.yaml")
 	}
 
-	pkgPath := strings.ReplaceAll(cfg.Package, ".", "/")
-	superDir := filepath.Join(root, "src", "main", "java", pkgPath, "subsystems", "superstructure")
+	superDir := filepath.Join(generator.JavaDir(root, cfg.Package), "subsystems", "superstructure")
 	if err := os.RemoveAll(superDir); err != nil {
 		return fmt.Errorf("deleting superstructure files: %w", err)
 	}
 	fmt.Printf("Deleted %s\n", superDir)
+
+	inj, hasContainer, hasRobot := projectInjector(root, cfg)
+	if hasContainer {
+		si := injector.SubsystemInjection{Name: "Superstructure", NameLower: "superstructure", Package: cfg.Package}
+		if err := inj.Eject(si); err != nil {
+			fmt.Printf("\nWarning: could not auto-remove from RobotContainer.java: %v\n", err)
+		} else {
+			fmt.Println("  removed from RobotContainer.java")
+		}
+	}
+	if hasRobot {
+		if err := inj.EjectPeriodic("superstructure"); err != nil {
+			fmt.Printf("\nWarning: could not auto-remove from Robot.java: %v\n", err)
+		} else {
+			fmt.Println("  removed periodic() from Robot.java")
+		}
+	}
 
 	cfg.Superstructure = false
 	if err := config.Save(root, cfg); err != nil {

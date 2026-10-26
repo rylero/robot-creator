@@ -1,8 +1,54 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
-import com.ctre.phoenix6.CANBus;
+import static org.wpilib.units.Units.RotationsPerSecond;
+import static org.wpilib.units.Units.Volts;
 
-public class {{.Name}}Constants {
-  public static final CANBus CAN_BUS = new CANBus("canivore");
+import com.ctre.phoenix6.CANBus;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.signals.InvertedValue;
+{{- if .Followers}}
+import com.ctre.phoenix6.signals.MotorAlignmentValue;
+{{- end}}
+import com.ctre.phoenix6.signals.NeutralModeValue;
+import {{.Package}}.util.PhoenixUtil;
+import org.wpilib.hardware.bus.CANPort;
+import org.wpilib.units.measure.AngularVelocity;
+import org.wpilib.units.measure.Voltage;
+
+public final class {{.Name}}Constants {
+  private {{.Name}}Constants() {}
+
   public static final int MOTOR_ID = {{.LeaderID}}; // TODO: set CAN ID
+{{- range .Followers}}
+  public static final int FOLLOWER_{{.Index}}_ID = {{.DefaultID}}; // TODO: set CAN ID
+{{- end}}
+  public static final CANBus CAN_BUS = new CANBus(CANPort.CAN_S0);
+
+  public static final InvertedValue INVERTED = InvertedValue.CounterClockwise_Positive;
+{{- if .Followers}}
+  public static final MotorAlignmentValue FOLLOWER_ALIGNMENT = MotorAlignmentValue.{{if .Aligned}}Aligned{{else}}Opposed{{end}};
+{{- end}}
+
+  /** Motor rotations per roller rotation. */
+  public static final double GEARING = 1.0;
+
+  public static final Voltage FORWARD_VOLTAGE = Volts.of(8.0);
+  public static final Voltage REVERSE_VOLTAGE = Volts.of(-8.0);
+
+  public static final AngularVelocity STALL_VELOCITY = RotationsPerSecond.of(5.0);
+  public static final double STALL_CURRENT_AMPS = 30.0;
+  public static final double STALL_DEBOUNCE_SECONDS = 0.25;
+
+  public static final double MAX_VOLTS = 12.0;
+  public static final double STATOR_CURRENT_LIMIT = 60.0;
+  public static final double SUPPLY_CURRENT_LIMIT = 40.0;
+
+  public static TalonFXConfiguration config() {
+    var config = new TalonFXConfiguration();
+    config.Feedback.SensorToMechanismRatio = GEARING;
+    config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+    config.MotorOutput.Inverted = INVERTED;
+    PhoenixUtil.applySafetyLimits(config, MAX_VOLTS, STATOR_CURRENT_LIMIT, SUPPLY_CURRENT_LIMIT);
+    return config;
+  }
 }

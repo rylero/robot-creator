@@ -1,86 +1,85 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
-import static edu.wpi.first.units.Units.*;
-import static frc.robot.util.PhoenixUtil.tryUntilOk;
+import static {{.Package}}.util.PhoenixUtil.tryUntilOk;
 
 import com.ctre.phoenix6.StatusSignal;
-import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.MotionMagicVelocityVoltage;
-import com.ctre.phoenix6.hardware.ParentDevice;
+import com.ctre.phoenix6.StatusSignalCollection;
+{{- if .Followers}}
+import com.ctre.phoenix6.controls.Follower;
+{{- end}}
+import com.ctre.phoenix6.controls.VelocityVoltage;
+import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
-import edu.wpi.first.units.measure.AngularVelocity;
-import edu.wpi.first.units.measure.Current;
-import edu.wpi.first.units.measure.Voltage;
-import edu.wpi.first.wpilibj.Alert;
-import edu.wpi.first.wpilibj.Alert.AlertType;
-import frc.robot.util.AlertUtils;
-import frc.robot.util.BetterStatusSignalCollection;
+import org.wpilib.units.measure.AngularVelocity;
+import org.wpilib.units.measure.Current;
+import org.wpilib.units.measure.Voltage;
 
 public class {{.Name}}IOTalonFX implements {{.Name}}IO {
-  private final Alert statusSignalAlert =
-      new Alert("ISSUE", "Status Signal Error", AlertType.kError);
-  private final Alert configAlert =
-      new Alert("CRITICAL", "Failed to Configure {{.Name}} Motor", AlertType.kError);
+  private final TalonFX motor;
+{{- range .Followers}}
+  private final TalonFX follower{{.Index}};
+{{- end}}
 
-  private final TalonFX motor =
-      new TalonFX({{.Name}}Constants.MOTOR_ID, {{.Name}}Constants.CAN_BUS);
+  private final VelocityVoltage velocityRequest = new VelocityVoltage(0);
+  private final VoltageOut voltageRequest = new VoltageOut(0);
 
+  private final StatusSignalCollection signals;
   private final StatusSignal<AngularVelocity> velocity;
-  private final StatusSignal<Current> supplyCurrent;
   private final StatusSignal<Voltage> appliedVoltage;
-  private final BetterStatusSignalCollection statusSignalCollector;
-
-  private final MotionMagicVelocityVoltage velocityRequest =
-      new MotionMagicVelocityVoltage(0).withSlot(0);
+  private final StatusSignal<Current> supplyCurrent;
+{{- range .Followers}}
+  private final StatusSignal<Current> follower{{.Index}}SupplyCurrent;
+{{- end}}
 
   public {{.Name}}IOTalonFX() {
-    var config = new TalonFXConfiguration();
-    config.Feedback.SensorToMechanismRatio = {{.Name}}Constants.GEARING;
-    config.MotorOutput.Inverted = {{.Name}}Constants.MOTOR_DIRECTION;
-    config.Slot0 = {{.Name}}Constants.GAINS.toSlot0Configs();
-    config.MotionMagic = {{.Name}}Constants.MOTION_MAGIC_CONFIGS;
-    config.CurrentLimits.StatorCurrentLimitEnable = true;
-    config.CurrentLimits.StatorCurrentLimit = 40;
-    config.CurrentLimits.SupplyCurrentLimitEnable = true;
-    config.CurrentLimits.SupplyCurrentLimit = 20;
-    AlertUtils.processCriticalAlert(
-        configAlert, !tryUntilOk(5, () -> motor.getConfigurator().apply(config)));
+    motor = new TalonFX({{.Name}}Constants.MOTOR_ID, {{.Name}}Constants.CAN_BUS);
+{{- range .Followers}}
+    follower{{.Index}} = new TalonFX({{$.Name}}Constants.FOLLOWER_{{.Index}}_ID, {{$.Name}}Constants.CAN_BUS);
+{{- end}}
+
+    var config = {{.Name}}Constants.config();
+    tryUntilOk(5, () -> motor.getConfigurator().apply(config, 0.25));
+{{- range .Followers}}
+    tryUntilOk(5, () -> follower{{.Index}}.getConfigurator().apply(config, 0.25));
+    follower{{.Index}}.setControl(
+        new Follower({{$.Name}}Constants.MOTOR_ID, {{$.Name}}Constants.FOLLOWER_ALIGNMENT));
+{{- end}}
 
     velocity = motor.getVelocity();
-    supplyCurrent = motor.getSupplyCurrent();
     appliedVoltage = motor.getMotorVoltage();
-    velocity.setUpdateFrequency(50);
-    supplyCurrent.setUpdateFrequency(20);
-    appliedVoltage.setUpdateFrequency(20);
-    statusSignalCollector =
-        new BetterStatusSignalCollection(velocity, supplyCurrent, appliedVoltage);
-    ParentDevice.optimizeBusUtilizationForAll(motor);
+    supplyCurrent = motor.getSupplyCurrent();
+{{- range .Followers}}
+    follower{{.Index}}SupplyCurrent = follower{{.Index}}.getSupplyCurrent();
+{{- end}}
+
+    signals =
+        new StatusSignalCollection(
+            velocity, appliedVoltage, supplyCurrent{{range .Followers}}, follower{{.Index}}SupplyCurrent{{end}});
   }
 
   @Override
-  public void updateInputs({{.Name}}IOInputs inputs) {
-    statusSignalCollector.refreshAll();
-    if (!statusSignalCollector.isAllGood()) {
-      statusSignalAlert.set(true);
-      statusSignalAlert.setText(
-          "{{.Name}} TalonFX Status Signal Error: "
-              + statusSignalCollector.getBadSignalsString());
-    } else {
-      statusSignalAlert.set(false);
-    }
-    inputs.motorConnected = velocity.getStatus().isOK();
+  public void updateInputs({{.Name}}Inputs inputs) {
+    signals.refreshAll();
+
+    inputs.motorConnected = motor.isConnected();
+{{- range .Followers}}
+    inputs.follower{{.Index}}Connected = follower{{.Index}}.isConnected();
+{{- end}}
     inputs.velocity = velocity.getValue();
-    inputs.supplyCurrent = supplyCurrent.getValue();
     inputs.appliedVoltage = appliedVoltage.getValue();
+    inputs.supplyCurrent = supplyCurrent.getValue();
+{{- range .Followers}}
+    inputs.follower{{.Index}}SupplyCurrent = follower{{.Index}}SupplyCurrent.getValue();
+{{- end}}
   }
 
   @Override
-  public void setVelocity(AngularVelocity v) {
-    motor.setControl(velocityRequest.withVelocity(v));
+  public void setVelocity(AngularVelocity targetVelocity) {
+    motor.setControl(velocityRequest.withVelocity(targetVelocity));
   }
 
   @Override
-  public void stop() {
-    motor.stopMotor();
+  public void setVoltage(Voltage voltage) {
+    motor.setControl(voltageRequest.withOutput(voltage));
   }
 }

@@ -1,15 +1,11 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
-	"text/template"
 
-	"github.com/rylero/robot-creator/internal/config"
-	tmplpkg "github.com/rylero/robot-creator/internal/template"
+	"github.com/rylero/robot-creator/v3/internal/config"
+	"github.com/rylero/robot-creator/v3/internal/generator"
 	"github.com/spf13/cobra"
 )
 
@@ -18,27 +14,14 @@ var activeStatesFlag string
 
 var addSuperstructureCmd = &cobra.Command{
 	Use:   "superstructure",
-	Short: "Generate a Superstructure state-machine scaffold",
+	Short: "Generate a Superstructure state-machine coordinator",
 	RunE:  runAddSuperstructure,
 }
 
 func init() {
 	addCmd.AddCommand(addSuperstructureCmd)
-	addSuperstructureCmd.Flags().StringVar(&wantedStatesFlag, "wanted", "IDLE", "comma-separated WantedState enum values")
-	addSuperstructureCmd.Flags().StringVar(&activeStatesFlag, "active", "IDLE", "comma-separated CurrentState enum values")
-}
-
-type transitionMapping struct {
-	Wanted string
-	Active string
-}
-
-type superstructureCtx struct {
-	Package      string
-	WantedStates []string
-	ActiveStates []string
-	Transitions  []transitionMapping
-	DefaultActive string
+	addSuperstructureCmd.Flags().StringVar(&wantedStatesFlag, "wanted", "IDLE", "comma-separated Wanted enum values")
+	addSuperstructureCmd.Flags().StringVar(&activeStatesFlag, "active", "IDLE", "comma-separated Current enum values")
 }
 
 func parseStates(raw string) []string {
@@ -53,29 +36,25 @@ func parseStates(raw string) []string {
 	return result
 }
 
-func buildTransitions(wanted, active []string) []transitionMapping {
-	transitions := make([]transitionMapping, len(wanted))
+func buildTransitions(wanted, active []string) []generator.Transition {
+	transitions := make([]generator.Transition, len(wanted))
 	for i, w := range wanted {
 		a := active[0]
 		if i < len(active) {
 			a = active[i]
 		}
-		transitions[i] = transitionMapping{Wanted: w, Active: a}
+		transitions[i] = generator.Transition{Wanted: w, Active: a}
 	}
 	return transitions
 }
 
 func runAddSuperstructure(cmd *cobra.Command, args []string) error {
-	root, err := config.FindRoot()
-	if err != nil {
-		return err
-	}
-	cfg, err := config.Load(root)
+	root, cfg, err := loadProject()
 	if err != nil {
 		return err
 	}
 	if cfg.Superstructure {
-		return fmt.Errorf("superstructure already generated. Remove 'superstructure: true' from robot-creator.yaml to regenerate")
+		return fmt.Errorf("superstructure already generated. Run 'robot-creator remove superstructure' to regenerate it")
 	}
 
 	wanted := parseStates(wantedStatesFlag)
@@ -87,66 +66,45 @@ func runAddSuperstructure(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--active must contain at least one state")
 	}
 
-	pkgPath := strings.ReplaceAll(cfg.Package, ".", "/")
-	outDir := filepath.Join(root, "src", "main", "java", pkgPath, "subsystems", "superstructure")
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return err
-	}
-
-	var source tmplpkg.TemplateSource
-	if cfg.TemplatesDir != "" {
-		source = tmplpkg.NewLocalSource(filepath.Join(root, cfg.TemplatesDir))
-	} else {
-		source = tmplpkg.NewEmbeddedSource()
-	}
-	raw, err := source.GetTemplate("superstructure", "Superstructure.java.tmpl")
-	if err != nil {
-		return err
-	}
-
-	ctx := superstructureCtx{
+	ctx := generator.SuperstructureContext{
 		Package:       cfg.Package,
 		WantedStates:  wanted,
 		ActiveStates:  active,
 		Transitions:   buildTransitions(wanted, active),
 		DefaultActive: active[0],
 	}
-
-	funcMap := template.FuncMap{
-		"add1": func(i int) int { return i + 1 },
-		"lowerCamel": func(s string) string {
-			parts := strings.Split(strings.ToLower(s), "_")
-			if len(parts) == 1 {
-				return parts[0]
-			}
-			result := parts[0]
-			for _, p := range parts[1:] {
-				if len(p) > 0 {
-					result += strings.ToUpper(p[:1]) + p[1:]
-				}
-			}
-			return result
-		},
+	var mechanismNames []string
+	for _, s := range cfg.Subsystems {
+		m := generator.Mechanism{Name: s.Name, NameLower: strings.ToLower(s.Name)}
+		ctx.Mechanisms = append(ctx.Mechanisms, m)
+		mechanismNames = append(mechanismNames, m.NameLower)
 	}
-	t, err := template.New("superstructure").Funcs(funcMap).Parse(string(raw))
+
+	outPath, err := generator.New(templateSource(root, cfg)).GenerateSuperstructure(ctx, root)
 	if err != nil {
 		return err
 	}
-	var buf bytes.Buffer
-	if err := t.Execute(&buf, ctx); err != nil {
-		return err
-	}
+	fmt.Printf("Created %s\n", outPath)
 
-	outPath := filepath.Join(outDir, "Superstructure.java")
-	if err := os.WriteFile(outPath, buf.Bytes(), 0644); err != nil {
-		return err
+	inj, hasContainer, hasRobot := projectInjector(root, cfg)
+	if hasContainer {
+		if err := inj.InjectSuperstructure(cfg.Package, mechanismNames); err != nil {
+			fmt.Printf("\nWarning: could not auto-inject into RobotContainer.java: %v\n", err)
+			fmt.Printf("Add 'public final Superstructure superstructure;' and, after the currentMode switch:\n")
+			fmt.Printf("  superstructure = new Superstructure(%s);\n", strings.Join(mechanismNames, ", "))
+		} else {
+			fmt.Println("  injected into RobotContainer.java")
+		}
+	}
+	if hasRobot {
+		if err := inj.InjectPeriodic("superstructure"); err != nil {
+			fmt.Printf("\nWarning: could not auto-inject into Robot.java: %v\n", err)
+			fmt.Println("Call container.superstructure.periodic(); after the mechanisms' periodic() calls")
+		} else {
+			fmt.Println("  injected periodic() into Robot.java")
+		}
 	}
 
 	cfg.Superstructure = true
-	if err := config.Save(root, cfg); err != nil {
-		return err
-	}
-
-	fmt.Printf("Created %s\n", outPath)
-	return nil
+	return config.Save(root, cfg)
 }

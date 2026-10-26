@@ -1,38 +1,40 @@
 # robot-creator
 
-CLI for scaffolding [AdvantageKit](https://github.com/Mechanical-Advantage/AdvantageKit) FRC robot subsystems. Generates the full IO-layer file set and injects wiring into `RobotContainer.java`.
+CLI for scaffolding [AdvantageKit](https://github.com/Mechanical-Advantage/AdvantageKit) FRC mechanisms on **WPILib 2027 Commands v3**. Generates the full IO-layer file set and wires it into `RobotContainer.java` and `Robot.java`.
+
+> Looking for Commands v2 (`SubsystemBase`, `edu.wpi.first.*`)? Use the v0.1.x line:
+> `go install github.com/rylero/robot-creator@v0.1.8`
 
 ## Requirements
 
-- Go 1.21+
+- Go 1.25+
 - Git (for `init`)
+- A robot project on WPILib 2027 with the Commands v3 vendordep, AdvantageKit, and Phoenix 6, structured like [6238/2026RobotSystemcore](https://github.com/6238/2026RobotSystemcore): an `OpModeRobot` whose `robotPeriodic()` calls each mechanism's `periodic()` and then `Scheduler.getDefault().run()`
 
 ## Install
 
 ```
-go install github.com/rylero/robot-creator@latest
+go install github.com/rylero/robot-creator/v3@latest
 ```
 
 ## Quick Start
 
 ```bash
-# Clone your AKit template repo and create robot-creator.yaml
+# Clone a Commands v3 robot repo and create robot-creator.yaml
 robot-creator init --name MyRobot --team 1234
 
-cd MyRobot
+# ...or adopt an existing Commands v3 project
+cd MyRobot && robot-creator init --no-clone --team 1234
 
-# Generate subsystems
-robot-creator add subsystem Shooter --type flywheel
-robot-creator add subsystem Arm --type arm --motors 3
+# Generate mechanisms
+robot-creator add subsystem Shooter --type flywheel --motors 2 --id 20
+robot-creator add subsystem Arm --type arm --id 30
 robot-creator add subsystem Wrist --type manipulator
 
-# Generate a superstructure state machine
+# Generate a superstructure that coordinates the mechanisms added so far
 robot-creator add superstructure --wanted IDLE,INTAKE,SHOOT --active IDLE,INTAKING,SHOOTING
 
-# See what's been added
 robot-creator list subsystems
-
-# Remove a subsystem
 robot-creator remove subsystem Shooter
 ```
 
@@ -40,12 +42,12 @@ robot-creator remove subsystem Shooter
 
 | Command | Description |
 |---|---|
-| `init --name <dir> --team <number>` | Clone the AKit template repo and initialize the project |
+| `init --name <dir> --team <number>` | Clone a Commands v3 robot repo and initialize the project |
 | `init --no-clone --team <number>` | Initialize `robot-creator.yaml` in the current directory without cloning |
-| `add subsystem <Name> --type <type>` | Generate a 5-file AKit subsystem (see flags below) |
+| `add subsystem <Name> --type <type>` | Generate a 5-file AdvantageKit mechanism (see flags below) |
 | `add superstructure` | Generate a superstructure state machine (see flags below) |
-| `remove subsystem <Name>` | Delete generated files and remove from RobotContainer |
-| `remove superstructure` | Delete the superstructure directory and clear it from config |
+| `remove subsystem <Name>` | Delete generated files and unwire them |
+| `remove superstructure` | Delete the superstructure and unwire it |
 | `export templates [dir]` | Copy built-in templates to a local directory for customization |
 | `list types` | Show available subsystem types |
 | `list subsystems` | Show subsystems in the current project |
@@ -56,16 +58,16 @@ robot-creator remove subsystem Shooter
 | Flag | Default | Description |
 |---|---|---|
 | `--type` | (required) | Subsystem type |
-| `--motors` | 2 for arm/elevator, 1 otherwise | Number of TalonFX motors |
-| `--aligned` | `true` | Followers mechanically aligned to leader; pass `--aligned=false` if motors face opposite directions |
-| `--id` | `0` | Leader/motor CAN ID; followers get consecutive IDs (`--id 5` → leader=5, follower2=6, follower3=7) |
+| `--motors` | 2 for arm/elevator, 1 otherwise | Number of TalonFX motors; every type supports followers |
+| `--aligned` | `true` | Followers mechanically aligned to the leader; pass `--aligned=false` if they face opposite directions |
+| `--id` | `0` | Leader CAN ID; followers get consecutive IDs (`--id 5` → leader=5, follower2=6, follower3=7) |
 
 ### `add superstructure` flags
 
 | Flag | Default | Description |
 |---|---|---|
-| `--wanted` | `IDLE` | Comma-separated `WantedState` enum values |
-| `--active` | `IDLE` | Comma-separated `CurrentState` enum values |
+| `--wanted` | `IDLE` | Comma-separated `Wanted` enum values |
+| `--active` | `IDLE` | Comma-separated `Current` enum values |
 
 States are mapped by index (`wanted[i]` → `active[i]`). If the lists have different lengths, extra wanted states fall back to `active[0]`. State names are uppercased automatically.
 
@@ -76,23 +78,27 @@ States are mapped by index (`wanted[i]` → `active[i]`). If the lists have diff
 | `--name` | (required unless `--no-clone`) | Project directory name |
 | `--team` | (required) | FRC team number |
 | `--package` | `frc.robot` | Java package name |
-| `--repo` | `https://github.com/rylero/akit-robot-template` | AKit template repo to clone |
+| `--repo` | `https://github.com/6238/2026RobotSystemcore` | Commands v3 robot repo to clone |
 | `--no-clone` | `false` | Skip git clone; write `robot-creator.yaml` into the current directory |
+
+`robot-creator.yaml` carries `version: 3`. The CLI refuses projects without it so Commands v3 code never lands in a Commands v2 robot.
 
 ## Subsystem Types
 
-| Type | Control | Motors |
+| Type | Control | Commands |
 |---|---|---|
-| `flywheel` | MotionMagicVelocityVoltage | 1 |
-| `pivot` | MotionMagicVoltage + soft limits | 1 |
-| `roller` | VoltageOut with velocity monitoring | 1 |
-| `arm` | MotionMagicVoltage + soft limits (angle) | configurable (default 2) |
-| `elevator` | MotionMagicVoltage + soft limits (meters) | configurable (default 2) |
-| `turret` | MotionMagicVoltage + ContinuousWrap | 1 |
-| `generic` | VoltageOut | 1 |
-| `manipulator` | MotionMagicVoltage position control (rotations) | configurable (default 1) |
+| `flywheel` | `VelocityVoltage` | `spin()`, `spin(velocity)`, `atSpeed()` |
+| `pivot` | `MotionMagicVoltage`, `Arm_Cosine` gravity, soft limits | `hold(angle)`, `moveTo(angle)`, `atSetpoint()` |
+| `arm` | Same as pivot; 2 motors by default | `hold(angle)`, `moveTo(angle)`, `atSetpoint()` |
+| `elevator` | `MotionMagicVoltage` in meters, `Elevator_Static` gravity, soft limits; 2 motors by default | `hold(height)`, `moveTo(height)`, `atSetpoint()` |
+| `turret` | `MotionMagicVoltage` with `ContinuousWrap` | `hold(angle)`, `moveTo(angle)`, `atSetpoint()` |
+| `manipulator` | `MotionMagicVoltage` in rotations, soft limits | `hold(position)`, `moveTo(position)`, `atSetpoint()` |
+| `roller` | `VoltageOut` with debounced stall detection | `forward()`, `reverse()`, `runVoltage(v)`, `isStalled()` |
+| `generic` | `VoltageOut` | `runVoltage(v)` |
 
-`arm` and `elevator` use `SingleJointedArmSim`/`ElevatorSim` for physics-accurate simulation. `manipulator` uses a simpler `FlywheelSim` + velocity integration — suitable for wrists, claws, or any position-controlled mechanism where arm inertia is unknown.
+Every mechanism `implements Mechanism, AutoCloseable` and sets `idle()` (0 V) as its default command. `hold(...)` runs until interrupted; `moveTo(...)` finishes once within tolerance, after which the default command takes over, so use `hold` when a mechanism must stay put. `hold`, `spin`, and `runVoltage` also accept a `Supplier`.
+
+Simulation uses WPILib plants: `SingleJointedArmSim` for arm/pivot, `ElevatorSim` for elevator, and the project's `VelocityPlant` for everything else.
 
 ## What Gets Generated
 
@@ -100,64 +106,36 @@ For `robot-creator add subsystem Shooter --type flywheel`:
 
 ```
 src/main/java/frc/robot/subsystems/shooter/
-  Shooter.java            # Subsystem class
-  ShooterIO.java          # IO interface + @AutoLog inputs
-  ShooterIOTalonFX.java   # TalonFX implementation
+  Shooter.java            # Mechanism with commands and disconnect alerts
+  ShooterIO.java          # IO interface + @AutoLog ShooterInputs
+  ShooterIOTalonFX.java   # TalonFX implementation (StatusSignalCollection)
   ShooterIOSim.java       # WPILib simulation
-  ShooterConstants.java   # CAN IDs, gains, physical constants
+  ShooterConstants.java   # CAN IDs, limits, TalonFXConfiguration builder
 ```
 
-`RobotContainer.java` is updated automatically with imports, a field declaration, and instantiation in each switch case (`REAL`, `SIM`, `default`). If the file cannot be parsed, the required lines are printed for manual insertion.
+Commands v3 does not call mechanism `periodic()` for you, so the wiring touches two files:
 
-For `robot-creator add superstructure --wanted IDLE,INTAKE,SHOOT --active IDLE,INTAKING,SHOOTING`:
+- **`RobotContainer.java`**: imports, a `public final Shooter shooter;` field, and construction in each `Constants.currentMode` case (`REAL`, `SIM`, `default`).
+- **`Robot.java`**: `container.shooter.periodic();` in `robotPeriodic()`, after the other mechanisms and before `container.superstructure.periodic()` and `Scheduler.getDefault().run()`.
+
+If either file can't be parsed, the lines to add are printed instead. An existing subsystem directory is never overwritten.
+
+The generated code also needs `util/PhoenixUtil`, `util/Measures`, and `sim/VelocityPlant`. Any that are missing from the project are created; existing ones are left alone.
+
+For `robot-creator add superstructure --wanted IDLE,INTAKE --active IDLE,INTAKING`:
 
 ```
 src/main/java/frc/robot/subsystems/superstructure/
-  Superstructure.java     # State machine with WantedState/CurrentState enums,
-                          # handleStateTransitions(), applyState(), and command methods
+  Superstructure.java     # Wanted/Current enums, nextState(), dispatch(), want() commands
 ```
 
-## Multi-Motor Example
-
-```bash
-# 3-motor arm, all aligned
-robot-creator add subsystem Arm --type arm --motors 3
-
-# 2-motor elevator with opposed followers (motors face each other)
-robot-creator add subsystem Elevator --type elevator --motors 2 --aligned=false
-```
-
-Generated code uses `follower2`, `follower3`... naming. Each follower gets its own CAN ID constant (`FOLLOWER_2_ID`, `FOLLOWER_3_ID`...) and supply current signal.
+The superstructure is a coordinator, not a `Mechanism`. Each cycle it computes `nextState(wanted, current)`. When the state changes, `dispatch()` schedules mechanism commands (stubbed as `idle()` with a TODO). Bind buttons to `superstructure.want(Wanted.INTAKE)`. Its constructor takes every mechanism in `robot-creator.yaml`. Mechanisms added afterwards must be added to it by hand.
 
 ## Custom Templates
-
-Export the built-in templates to edit them locally:
 
 ```bash
 robot-creator export templates           # exports to ./templates/
 robot-creator export templates my-tmpls  # exports to ./my-tmpls/
 ```
 
-After export, `robot-creator.yaml` is updated with `templates_dir: templates`. All subsequent `add subsystem` and `add superstructure` calls will use your local `.tmpl` files instead of the built-ins. Edit any `.java.tmpl` file — Go template syntax applies.
-
-To revert to built-ins, remove the `templates_dir` line from `robot-creator.yaml`.
-
-## Template Repo
-
-The default template (`rylero/akit-robot-template`) is a swerve + vision baseline using:
-
-- TalonFX swerve (MapleSimSwerve for simulation)
-- PhotonVision (2-camera pose estimation)
-- RobotIdentity (comp/practice bot switching via RIO serial)
-- PathPlanner
-
-Point `--repo` at your own fork to use a customized baseline.
-
-## AlertUtils Wiring
-
-Generated IOTalonFX classes call `AlertUtils.processCriticalAlert` on config failure. Wire the rumble callbacks in `Robot.java` or `RobotContainer`:
-
-```java
-AlertUtils.criticalErrorRumbleFunction = () -> controller.setRumble(...);
-AlertUtils.stopRumbleFunction = () -> controller.setRumble(...);
-```
+After export, `robot-creator.yaml` gets `templates_dir: templates`, and `add` uses your local `.tmpl` files (Go template syntax). Remove that line to go back to the built-ins.

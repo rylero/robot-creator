@@ -1,0 +1,48 @@
+package {{.Package}}.sim;
+
+import {{.Package}}.Constants;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
+import org.wpilib.simulation.FlywheelSim;
+
+/** WPILib flywheel plant plus a simple voltage / velocity controller for SIM IO. */
+public final class VelocityPlant {
+  private final FlywheelSim sim;
+  private double appliedVolts;
+  private Double velocityRadPerSec;
+
+  public VelocityPlant(DCMotor motor, double moiKgM2, double gearing) {
+    this.sim =
+        new FlywheelSim(Models.flywheelFromPhysicalConstants(motor, moiKgM2, gearing), motor);
+  }
+
+  public void setVoltage(double volts) {
+    velocityRadPerSec = null;
+    appliedVolts = Math.clamp(volts, -12.0, 12.0);
+  }
+
+  public void setVelocityRadPerSec(double radPerSec) {
+    velocityRadPerSec = radPerSec;
+  }
+
+  public void update() {
+    if (velocityRadPerSec != null) {
+      double error = velocityRadPerSec - sim.getAngularVelocity();
+      appliedVolts = Math.clamp(0.15 * error + 0.02 * velocityRadPerSec, -12.0, 12.0);
+    }
+    sim.setInputVoltage(appliedVolts);
+    sim.update(Constants.ROBOT_PERIOD);
+  }
+
+  public double velocityRadPerSec() {
+    return sim.getAngularVelocity();
+  }
+
+  public double appliedVolts() {
+    return appliedVolts;
+  }
+
+  public double currentAmps() {
+    return Math.abs(sim.getCurrentDraw());
+  }
+}

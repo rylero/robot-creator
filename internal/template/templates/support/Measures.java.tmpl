@@ -1,0 +1,23 @@
+package {{.Package}}.util;
+
+import static org.wpilib.units.Units.Volts;
+
+import org.wpilib.units.Measure;
+import org.wpilib.units.measure.Voltage;
+
+/** Finite-guards for WPILib measures. Non-finite commands become a safe neutral. */
+public final class Measures {
+  private Measures() {}
+
+  public static boolean isFinite(Measure<?> measure) {
+    return measure != null && Double.isFinite(measure.baseUnitMagnitude());
+  }
+
+  /** Non-finite or null voltage → 0 V. */
+  public static Voltage finiteVoltage(Voltage voltage) {
+    if (!isFinite(voltage)) {
+      return Volts.of(0.0);
+    }
+    return voltage;
+  }
+}

@@ -1,41 +1,101 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
-import static edu.wpi.first.units.Units.*;
-import edu.wpi.first.units.measure.AngularVelocity;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import org.littletonrobotics.junction.Logger;
+import static org.wpilib.units.Units.RotationsPerSecond;
+import static org.wpilib.units.Units.Volts;
 
-public class {{.Name}} extends SubsystemBase {
+import {{.Package}}.util.Measures;
+import java.util.function.Supplier;
+import org.littletonrobotics.junction.Logger;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.units.measure.AngularVelocity;
+import org.wpilib.util.Alert;
+import org.wpilib.util.Alert.Level;
+
+public class {{.Name}} implements Mechanism, AutoCloseable {
   private final {{.Name}}IO io;
-  private final {{.Name}}IOInputsAutoLogged inputs = new {{.Name}}IOInputsAutoLogged();
-  private AngularVelocity targetVelocity = RotationsPerSecond.of(0);
+  private final {{.Name}}InputsAutoLogged inputs = new {{.Name}}InputsAutoLogged();
+
+  /** Non-null only while in closed-loop velocity control. */
+  private AngularVelocity setpoint;
+
+  private final Alert motorDisconnectedAlert =
+      new Alert("{{.Name}}", "motorDisconnected", "{{.Name}} motor disconnected.", Level.HIGH);
+{{- range .Followers}}
+  private final Alert follower{{.Index}}DisconnectedAlert =
+      new Alert(
+          "{{$.Name}}",
+          "follower{{.Index}}Disconnected",
+          "{{$.Name}} follower {{.Index}} disconnected.",
+          Level.HIGH);
+{{- end}}
 
   public {{.Name}}({{.Name}}IO io) {
     this.io = io;
+    setDefaultCommand(idle());
   }
 
-  @Override
+  /** Called from Robot.robotPeriodic() before the scheduler runs. */
   public void periodic() {
     io.updateInputs(inputs);
     Logger.processInputs("{{.Name}}", inputs);
+
+    motorDisconnectedAlert.set(!inputs.motorConnected);
+{{- range .Followers}}
+    follower{{.Index}}DisconnectedAlert.set(!inputs.follower{{.Index}}Connected);
+{{- end}}
+
+    Logger.recordOutput(
+        "{{.Name}}/Setpoint", setpoint != null ? setpoint : RotationsPerSecond.of(0.0));
+    Logger.recordOutput("{{.Name}}/ClosedLoop", setpoint != null);
+    Logger.recordOutput("{{.Name}}/AtSpeed", atSpeed());
   }
 
-  public Command setVelocity(AngularVelocity velocity) {
-    return runOnce(() -> {
-      targetVelocity = velocity;
-      io.setVelocity(velocity);
-    });
+  @Override
+  public Command idle() {
+    return runRepeatedly(
+            () -> {
+              setpoint = null;
+              io.setVoltage(Volts.of(0.0));
+            })
+        .named("{{.Name}}[IDLE]");
   }
 
-  public Command stop() {
-    return runOnce(() -> {
-      targetVelocity = RotationsPerSecond.of(0);
-      io.stop();
-    });
+  /** Spins at {@link {{.Name}}Constants#SPEED} until interrupted. */
+  public Command spin() {
+    return spin(() -> {{.Name}}Constants.SPEED);
   }
 
-  public boolean atTargetVelocity() {
-    return inputs.velocity.isNear(targetVelocity, {{.Name}}Constants.VELOCITY_TOLERANCE);
+  public Command spin(AngularVelocity velocity) {
+    return spin(() -> velocity);
+  }
+
+  public Command spin(Supplier<AngularVelocity> velocity) {
+    return runRepeatedly(() -> commandVelocity(velocity.get())).named("{{.Name}}Spin");
+  }
+
+  public boolean atSpeed() {
+    return setpoint != null && inputs.velocity.isNear(setpoint, {{.Name}}Constants.TOLERANCE);
+  }
+
+  public AngularVelocity getVelocity() {
+    return inputs.velocity;
+  }
+
+  @Override
+  public void close() {
+    motorDisconnectedAlert.close();
+{{- range .Followers}}
+    follower{{.Index}}DisconnectedAlert.close();
+{{- end}}
+  }
+
+  private void commandVelocity(AngularVelocity desired) {
+    setpoint = Measures.isFinite(desired) ? desired : null;
+    if (setpoint != null) {
+      io.setVelocity(setpoint);
+    } else {
+      io.setVoltage(Volts.of(0.0));
+    }
   }
 }

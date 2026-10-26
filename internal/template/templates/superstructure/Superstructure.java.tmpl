@@ -1,61 +1,102 @@
 package {{.Package}}.subsystems.superstructure;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
+{{range .Mechanisms -}}
+import {{$.Package}}.subsystems.{{.NameLower}}.{{.Name}};
+{{end -}}
+import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Scheduler;
 
-public class Superstructure extends SubsystemBase {
-
-  public enum WantedState {
-{{- range $i, $s := .WantedStates}}
-    {{$s}}{{if lt (add1 $i) (len $.WantedStates)}},{{end}}
+/**
+ * Coordinator only: picks the next state from what the driver wants, then schedules mechanism
+ * commands when the state changes. It never writes actuators.
+ *
+ * <p>This is not a Mechanism, so it holds no lock. Robot.robotPeriodic() calls {@link #periodic()}
+ * after every mechanism has read its inputs.
+ */
+public class Superstructure {
+  public enum Wanted {
+{{- range $i, $s := .WantedStates}}{{if $i}},{{end}}
+    {{$s}}
 {{- end}}
   }
 
-  public enum CurrentState {
-{{- range $i, $s := .ActiveStates}}
-    {{$s}}{{if lt (add1 $i) (len $.ActiveStates)}},{{end}}
+  public enum Current {
+{{- range $i, $s := .ActiveStates}}{{if $i}},{{end}}
+    {{$s}}
 {{- end}}
   }
+{{range .Mechanisms}}
+  private final {{.Name}} {{.NameLower}};
+{{- end}}
+  private final Scheduler scheduler;
 
-  public WantedState wantedState = WantedState.{{index .WantedStates 0}};
-  public CurrentState currentState = CurrentState.{{.DefaultActive}};
+  private Wanted wanted = Wanted.{{index .WantedStates 0}};
+  private Current current = Current.{{.DefaultActive}};
+  private Current lastDispatched;
 
-  public Superstructure() {}
-
-  @Override
-  public void periodic() {
-    CurrentState nextState = handleStateTransitions();
-    applyState(nextState);
-    currentState = nextState;
-    Logger.recordOutput("Superstructure/WantedState", wantedState.toString());
-    Logger.recordOutput("Superstructure/CurrentState", currentState.toString());
+  public Superstructure({{range $i, $m := .Mechanisms}}{{if $i}}, {{end}}{{$m.Name}} {{$m.NameLower}}{{end}}) {
+    this({{range .Mechanisms}}{{.NameLower}}, {{end}}Scheduler.getDefault());
   }
 
-  private CurrentState handleStateTransitions() {
-    switch (wantedState) {
+  public Superstructure({{range .Mechanisms}}{{.Name}} {{.NameLower}}, {{end}}Scheduler scheduler) {
+{{- range .Mechanisms}}
+    this.{{.NameLower}} = {{.NameLower}};
+{{- end}}
+    this.scheduler = scheduler;
+  }
+
+  public void setWanted(Wanted wanted) {
+    this.wanted = wanted;
+  }
+
+  public Command want(Wanted state) {
+    return Command.noRequirements(coroutine -> wanted = state).named("Want[" + state + "]");
+  }
+
+  public Command want(Supplier<Wanted> state) {
+    return Command.noRequirements(coroutine -> wanted = state.get()).named("Want");
+  }
+
+  public Wanted getWanted() {
+    return wanted;
+  }
+
+  public Current getCurrent() {
+    return current;
+  }
+
+  /** Pure transition function, so it can be unit tested without hardware. */
+  public static Current nextState(Wanted wanted, Current current) {
+    return switch (wanted) {
 {{- range .Transitions}}
-      case {{.Wanted}}:
-        return CurrentState.{{.Active}};
+      case {{.Wanted}} -> Current.{{.Active}};
 {{- end}}
-      default:
-        return CurrentState.{{.DefaultActive}};
-    }
+    };
   }
 
-  private void applyState(CurrentState state) {
+  public void periodic() {
+    current = nextState(wanted, current);
+    if (current != lastDispatched) {
+      lastDispatched = current;
+      dispatch(current);
+    }
+
+    Logger.recordOutput("Superstructure/Wanted", wanted);
+    Logger.recordOutput("Superstructure/Current", current);
+  }
+
+  private void dispatch(Current state) {
     switch (state) {
 {{- range .ActiveStates}}
-      case {{.}}:
-        // TODO: apply {{.}} state
-        break;
+      case {{.}} -> {
+        // TODO: schedule the mechanism commands for {{.}}
+{{- range $.Mechanisms}}
+        scheduler.schedule({{.NameLower}}.idle());
 {{- end}}
-      default:
-        break;
+      }
+{{- end}}
     }
   }
-{{range .WantedStates}}
-  public Command {{lowerCamel .}}() {
-    return runOnce(() -> wantedState = WantedState.{{.}});
-  }
-{{end}}}
+}

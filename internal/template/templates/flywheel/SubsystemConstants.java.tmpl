@@ -1,27 +1,63 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
+import static org.wpilib.units.Units.RotationsPerSecond;
+
 import com.ctre.phoenix6.CANBus;
-import com.ctre.phoenix6.configs.MotionMagicConfigs;
+import com.ctre.phoenix6.configs.Slot0Configs;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.signals.InvertedValue;
-import static edu.wpi.first.units.Units.*;
-import edu.wpi.first.units.measure.AngularVelocity;
-import frc.robot.util.LoggedNetworkPIDFeedforwardGains;
-import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
+{{- if .Followers}}
+import com.ctre.phoenix6.signals.MotorAlignmentValue;
+{{- end}}
+import com.ctre.phoenix6.signals.NeutralModeValue;
+import {{.Package}}.util.PhoenixUtil;
+import org.wpilib.hardware.bus.CANPort;
+import org.wpilib.units.measure.AngularVelocity;
 
-public class {{.Name}}Constants {
-  public static final CANBus CAN_BUS = new CANBus("canivore");
+public final class {{.Name}}Constants {
+  private {{.Name}}Constants() {}
+
   public static final int MOTOR_ID = {{.LeaderID}}; // TODO: set CAN ID
+{{- range .Followers}}
+  public static final int FOLLOWER_{{.Index}}_ID = {{.DefaultID}}; // TODO: set CAN ID
+{{- end}}
+  public static final CANBus CAN_BUS = new CANBus(CANPort.CAN_S0);
+
+  public static final InvertedValue INVERTED = InvertedValue.CounterClockwise_Positive;
+{{- if .Followers}}
+  public static final MotorAlignmentValue FOLLOWER_ALIGNMENT = MotorAlignmentValue.{{if .Aligned}}Aligned{{else}}Opposed{{end}};
+{{- end}}
+
+  /** Motor rotations per flywheel rotation. */
   public static final double GEARING = 1.0;
-  public static final InvertedValue MOTOR_DIRECTION = InvertedValue.CounterClockwise_Positive;
-  public static final AngularVelocity VELOCITY_TOLERANCE = RotationsPerSecond.of(2.0);
 
-  public static final LoggedNetworkNumber TARGET_VELOCITY =
-      new LoggedNetworkNumber("{{.Name}}/TargetVelocityRPS", 50.0);
+  public static final AngularVelocity SPEED = RotationsPerSecond.of(50.0);
+  public static final AngularVelocity TOLERANCE = RotationsPerSecond.of(2.0);
 
-  public static final LoggedNetworkPIDFeedforwardGains GAINS =
-      new LoggedNetworkPIDFeedforwardGains(
-          0.5, 0.0, 0.0, 0.0, 0.12, 0.24, 0.0, "{{.Name}}");
+  public static final double MAX_VOLTS = 12.0;
+  public static final double STATOR_CURRENT_LIMIT = 80.0;
+  public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
-  public static final MotionMagicConfigs MOTION_MAGIC_CONFIGS =
-      new MotionMagicConfigs().withMotionMagicAcceleration(300);
+  public static TalonFXConfiguration config() {
+    var config = new TalonFXConfiguration();
+    config.Slot0 = slot0();
+    config.Feedback.SensorToMechanismRatio = GEARING;
+    config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+    config.MotorOutput.Inverted = INVERTED;
+    PhoenixUtil.applySafetyLimits(config, MAX_VOLTS, STATOR_CURRENT_LIMIT, SUPPLY_CURRENT_LIMIT);
+    return config;
+  }
+
+  // TODO: tune
+  private static Slot0Configs slot0() {
+    var slot = new Slot0Configs();
+    slot.kP = 0.3;
+    slot.kI = 0.0;
+    slot.kD = 0.0;
+    slot.kS = 0.24;
+    slot.kV = 0.12;
+    slot.kA = 0.0;
+    slot.kG = 0.0;
+    return slot;
+  }
 }

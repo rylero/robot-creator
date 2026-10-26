@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/rylero/robot-creator/v3/internal/config"
 	"github.com/spf13/cobra"
-	"github.com/rylero/robot-creator/internal/config"
 )
 
 var (
@@ -17,18 +17,18 @@ var (
 	noClone     bool
 )
 
-const defaultRepo = "https://github.com/rylero/akit-robot-template"
+const defaultRepo = "https://github.com/6238/2026RobotSystemcore"
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Clone the AKit starter repo and initialize robot-creator.yaml",
+	Short: "Clone an AdvantageKit Commands v3 robot repo and initialize robot-creator.yaml",
 	RunE:  runInit,
 }
 
 func init() {
 	initCmd.Flags().StringVarP(&projectName, "name", "n", "", "project directory name (clones into this dir; omit with --no-clone)")
 	initCmd.Flags().IntVarP(&teamNumber, "team", "t", 0, "FRC team number (required)")
-	initCmd.Flags().StringVar(&repoURL, "repo", defaultRepo, "AKit template repo URL")
+	initCmd.Flags().StringVar(&repoURL, "repo", defaultRepo, "AdvantageKit Commands v3 robot repo URL")
 	initCmd.Flags().StringVar(&packageName, "package", "frc.robot", "Java package name")
 	initCmd.Flags().BoolVar(&noClone, "no-clone", false, "skip git clone; write robot-creator.yaml into the current directory")
 	initCmd.MarkFlagRequired("team")
@@ -40,7 +40,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		if _, err := os.Stat(config.FileName); err == nil {
 			return fmt.Errorf("robot-creator.yaml already exists in current directory")
 		}
-		cfg := &config.Config{Team: teamNumber, Package: packageName}
+		cfg := config.New(teamNumber, packageName)
 		if err := config.Save(".", cfg); err != nil {
 			return fmt.Errorf("writing robot-creator.yaml: %w", err)
 		}
@@ -64,7 +64,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("git clone failed: %w", err)
 	}
 
-	cfg := &config.Config{Team: teamNumber, Package: packageName}
+	cfg := config.New(teamNumber, packageName)
 	if err := config.Save(projectName, cfg); err != nil {
 		return fmt.Errorf("writing robot-creator.yaml: %w", err)
 	}

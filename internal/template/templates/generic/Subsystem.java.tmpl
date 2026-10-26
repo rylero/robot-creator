@@ -1,19 +1,84 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import org.littletonrobotics.junction.Logger;
+import static org.wpilib.units.Units.Volts;
 
-public class {{.Name}} extends SubsystemBase {
+import {{.Package}}.util.Measures;
+import java.util.function.Supplier;
+import org.littletonrobotics.junction.Logger;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.units.measure.Angle;
+import org.wpilib.units.measure.AngularVelocity;
+import org.wpilib.units.measure.Voltage;
+import org.wpilib.util.Alert;
+import org.wpilib.util.Alert.Level;
+
+public class {{.Name}} implements Mechanism, AutoCloseable {
   private final {{.Name}}IO io;
-  private final {{.Name}}IOInputsAutoLogged inputs = new {{.Name}}IOInputsAutoLogged();
+  private final {{.Name}}InputsAutoLogged inputs = new {{.Name}}InputsAutoLogged();
+
+  private Voltage output = Volts.of(0.0);
+
+  private final Alert motorDisconnectedAlert =
+      new Alert("{{.Name}}", "motorDisconnected", "{{.Name}} motor disconnected.", Level.HIGH);
+{{- range .Followers}}
+  private final Alert follower{{.Index}}DisconnectedAlert =
+      new Alert(
+          "{{$.Name}}",
+          "follower{{.Index}}Disconnected",
+          "{{$.Name}} follower {{.Index}} disconnected.",
+          Level.HIGH);
+{{- end}}
 
   public {{.Name}}({{.Name}}IO io) {
     this.io = io;
+    setDefaultCommand(idle());
   }
 
-  @Override
+  /** Called from Robot.robotPeriodic() before the scheduler runs. */
   public void periodic() {
     io.updateInputs(inputs);
     Logger.processInputs("{{.Name}}", inputs);
+
+    motorDisconnectedAlert.set(!inputs.motorConnected);
+{{- range .Followers}}
+    follower{{.Index}}DisconnectedAlert.set(!inputs.follower{{.Index}}Connected);
+{{- end}}
+
+    Logger.recordOutput("{{.Name}}/Output", output);
+  }
+
+  @Override
+  public Command idle() {
+    return runRepeatedly(() -> commandVoltage(Volts.of(0.0))).named("{{.Name}}[IDLE]");
+  }
+
+  public Command runVoltage(Voltage voltage) {
+    return runVoltage(() -> voltage);
+  }
+
+  public Command runVoltage(Supplier<Voltage> voltage) {
+    return runRepeatedly(() -> commandVoltage(voltage.get())).named("{{.Name}}RunVoltage");
+  }
+
+  public Angle getPosition() {
+    return inputs.position;
+  }
+
+  public AngularVelocity getVelocity() {
+    return inputs.velocity;
+  }
+
+  @Override
+  public void close() {
+    motorDisconnectedAlert.close();
+{{- range .Followers}}
+    follower{{.Index}}DisconnectedAlert.close();
+{{- end}}
+  }
+
+  private void commandVoltage(Voltage voltage) {
+    output = Measures.finiteVoltage(voltage);
+    io.setVoltage(output);
   }
 }

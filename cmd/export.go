@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rylero/robot-creator/internal/config"
-	tmplpkg "github.com/rylero/robot-creator/internal/template"
+	"github.com/rylero/robot-creator/v3/internal/config"
+	tmplpkg "github.com/rylero/robot-creator/v3/internal/template"
 	"github.com/spf13/cobra"
 )
 

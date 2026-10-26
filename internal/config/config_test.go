@@ -3,14 +3,15 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/rylero/robot-creator/internal/config"
+	"github.com/rylero/robot-creator/v3/internal/config"
 )
 
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
-	data := "team: 6328\npackage: frc.robot\nsubsystems:\n  - name: Shooter\n    type: flywheel\n"
+	data := "version: 3\nteam: 6328\npackage: frc.robot\nsubsystems:\n  - name: Shooter\n    type: flywheel\n"
 	os.WriteFile(filepath.Join(dir, "robot-creator.yaml"), []byte(data), 0644)
 
 	cfg, err := config.Load(dir)
@@ -35,9 +36,18 @@ func TestLoad_Missing(t *testing.T) {
 	}
 }
 
+func TestLoad_RejectsV2Project(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "robot-creator.yaml"), []byte("team: 6328\npackage: frc.robot\n"), 0644)
+	_, err := config.Load(dir)
+	if err == nil || !strings.Contains(err.Error(), "Commands v2") {
+		t.Fatalf("Load() error = %v, want Commands v2 project error", err)
+	}
+}
+
 func TestSave(t *testing.T) {
 	dir := t.TempDir()
-	cfg := &config.Config{Team: 254, Package: "frc.robot"}
+	cfg := config.New(254, "frc.robot")
 	if err := config.Save(dir, cfg); err != nil {
 		t.Fatalf("Save() error: %v", err)
 	}

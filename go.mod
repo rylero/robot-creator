@@ -1,4 +1,4 @@
-module github.com/rylero/robot-creator
+module github.com/rylero/robot-creator/v3
 
 go 1.25.7
 

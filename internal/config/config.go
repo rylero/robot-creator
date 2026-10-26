@@ -10,7 +10,12 @@ import (
 
 const FileName = "robot-creator.yaml"
 
+// Version marks projects generated for Commands v3. Projects without it were made by
+// robot-creator v0.x, which targets Commands v2.
+const Version = 3
+
 type Config struct {
+	Version        int         `yaml:"version"`
 	Team           int         `yaml:"team"`
 	Package        string      `yaml:"package"`
 	Subsystems     []Subsystem `yaml:"subsystems,omitempty"`
@@ -33,6 +38,11 @@ func Load(root string) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("malformed robot-creator.yaml: %w", err)
+	}
+	if cfg.Version != Version {
+		return nil, fmt.Errorf("robot-creator.yaml is for a Commands v2 project (no 'version: %d').\n"+
+			"Use the v2 generator: go install github.com/rylero/robot-creator@v0.1.8\n"+
+			"or, if this project already uses Commands v3, add 'version: %d' to robot-creator.yaml", Version, Version)
 	}
 	return &cfg, nil
 }
@@ -60,6 +70,11 @@ func FindRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// New returns a config for a fresh Commands v3 project.
+func New(team int, pkg string) *Config {
+	return &Config{Version: Version, Team: team, Package: pkg}
 }
 
 func (c *Config) HasSubsystem(name string) bool {

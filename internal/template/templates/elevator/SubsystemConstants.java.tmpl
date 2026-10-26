@@ -1,35 +1,78 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
+import static org.wpilib.units.Units.Meters;
+
 import com.ctre.phoenix6.CANBus;
-import com.ctre.phoenix6.configs.MotionMagicConfigs;
-{{- if gt .MotorCount 1}}
+import com.ctre.phoenix6.configs.Slot0Configs;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.signals.GravityTypeValue;
+import com.ctre.phoenix6.signals.InvertedValue;
+{{- if .Followers}}
 import com.ctre.phoenix6.signals.MotorAlignmentValue;
 {{- end}}
-import static edu.wpi.first.units.Units.*;
-import edu.wpi.first.units.measure.Distance;
-import frc.robot.util.LoggedNetworkPIDFeedforwardGains;
+import com.ctre.phoenix6.signals.NeutralModeValue;
+import {{.Package}}.util.PhoenixUtil;
+import org.wpilib.hardware.bus.CANPort;
+import org.wpilib.units.measure.Distance;
 
-public class {{.Name}}Constants {
-  public static final CANBus CAN_BUS = new CANBus("canivore");
-  public static final int LEADER_ID = {{.LeaderID}};   // TODO: set CAN IDs
+public final class {{.Name}}Constants {
+  private {{.Name}}Constants() {}
+
+  public static final int MOTOR_ID = {{.LeaderID}}; // TODO: set CAN ID
 {{- range .Followers}}
-  public static final int FOLLOWER_{{.Index}}_ID = {{.DefaultID}};   // TODO: set CAN IDs
+  public static final int FOLLOWER_{{.Index}}_ID = {{.DefaultID}}; // TODO: set CAN ID
 {{- end}}
-{{- if gt .MotorCount 1}}
-  public static final MotorAlignmentValue FOLLOWER_ALIGNMENT = MotorAlignmentValue.{{if .Aligned}}Aligned{{else}}OpposedToLeader{{end}};
+  public static final CANBus CAN_BUS = new CANBus(CANPort.CAN_S0);
+
+  public static final InvertedValue INVERTED = InvertedValue.CounterClockwise_Positive;
+{{- if .Followers}}
+  public static final MotorAlignmentValue FOLLOWER_ALIGNMENT = MotorAlignmentValue.{{if .Aligned}}Aligned{{else}}Opposed{{end}};
 {{- end}}
+
+  /** Motor rotations per drum rotation. */
   public static final double GEARING = 5.0;
-  public static final double SPOOL_CIRCUMFERENCE_M = 0.05 * Math.PI; // TODO: measure spool
 
+  public static final double DRUM_RADIUS_METERS = 0.025; // TODO: measure drum
+  public static final double METERS_PER_DRUM_ROTATION = 2.0 * Math.PI * DRUM_RADIUS_METERS;
+
+  public static final Distance MIN_HEIGHT = Meters.of(0.0);
   public static final Distance MAX_HEIGHT = Meters.of(1.0);
-  public static final Distance POSITION_TOLERANCE = Meters.of(0.01);
+  public static final Distance TOLERANCE = Meters.of(0.01);
 
-  public static final LoggedNetworkPIDFeedforwardGains GAINS =
-      new LoggedNetworkPIDFeedforwardGains(
-          5.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3, "{{.Name}}");
+  public static final double MAX_VOLTS = 12.0;
+  public static final double STATOR_CURRENT_LIMIT = 80.0;
+  public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
-  public static final MotionMagicConfigs MOTION_MAGIC_CONFIGS =
-      new MotionMagicConfigs()
-          .withMotionMagicCruiseVelocity(1.0)
-          .withMotionMagicAcceleration(3.0);
+  /** TalonFX positions are drum rotations; {@code {{.Name}}IOTalonFX} converts to meters. */
+  public static TalonFXConfiguration config() {
+    var config = new TalonFXConfiguration();
+    config.Slot0 = slot0();
+    config.Slot0.GravityType = GravityTypeValue.Elevator_Static;
+    config.Feedback.SensorToMechanismRatio = GEARING;
+    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    config.MotorOutput.Inverted = INVERTED;
+    config.MotionMagic.MotionMagicCruiseVelocity = 1.0 / METERS_PER_DRUM_ROTATION; // 1 m/s
+    config.MotionMagic.MotionMagicAcceleration = 3.0 / METERS_PER_DRUM_ROTATION; // 3 m/s^2
+    PhoenixUtil.applySafetyLimits(config, MAX_VOLTS, STATOR_CURRENT_LIMIT, SUPPLY_CURRENT_LIMIT);
+    config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
+        MAX_HEIGHT.in(Meters) / METERS_PER_DRUM_ROTATION;
+    config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
+        MIN_HEIGHT.in(Meters) / METERS_PER_DRUM_ROTATION;
+    return config;
+  }
+
+  // TODO: tune
+  private static Slot0Configs slot0() {
+    var slot = new Slot0Configs();
+    slot.kP = 5.0;
+    slot.kI = 0.0;
+    slot.kD = 0.0;
+    slot.kS = 0.0;
+    slot.kV = 0.0;
+    slot.kA = 0.0;
+    slot.kG = 0.3;
+    return slot;
+  }
 }

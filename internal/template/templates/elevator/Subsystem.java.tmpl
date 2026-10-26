@@ -1,34 +1,119 @@
 package {{.Package}}.subsystems.{{.NameLower}};
 
-import static edu.wpi.first.units.Units.*;
-import edu.wpi.first.units.measure.Distance;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import org.littletonrobotics.junction.Logger;
+import static org.wpilib.units.Units.Meters;
+import static org.wpilib.units.Units.Volts;
 
-public class {{.Name}} extends SubsystemBase {
+import {{.Package}}.util.Measures;
+import java.util.function.Supplier;
+import org.littletonrobotics.junction.Logger;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.units.measure.Distance;
+import org.wpilib.util.Alert;
+import org.wpilib.util.Alert.Level;
+
+public class {{.Name}} implements Mechanism, AutoCloseable {
   private final {{.Name}}IO io;
-  private final {{.Name}}IOInputsAutoLogged inputs = new {{.Name}}IOInputsAutoLogged();
-  private Distance targetPosition = Meters.of(0);
+  private final {{.Name}}InputsAutoLogged inputs = new {{.Name}}InputsAutoLogged();
+
+  /** Non-null only while in closed-loop position control. */
+  private Distance setpoint;
+
+  private final Alert motorDisconnectedAlert =
+      new Alert("{{.Name}}", "motorDisconnected", "{{.Name}} motor disconnected.", Level.HIGH);
+{{- range .Followers}}
+  private final Alert follower{{.Index}}DisconnectedAlert =
+      new Alert(
+          "{{$.Name}}",
+          "follower{{.Index}}Disconnected",
+          "{{$.Name}} follower {{.Index}} disconnected.",
+          Level.HIGH);
+{{- end}}
 
   public {{.Name}}({{.Name}}IO io) {
     this.io = io;
+    setDefaultCommand(idle());
   }
 
-  @Override
+  /** Called from Robot.robotPeriodic() before the scheduler runs. */
   public void periodic() {
     io.updateInputs(inputs);
     Logger.processInputs("{{.Name}}", inputs);
+
+    motorDisconnectedAlert.set(!inputs.motorConnected);
+{{- range .Followers}}
+    follower{{.Index}}DisconnectedAlert.set(!inputs.follower{{.Index}}Connected);
+{{- end}}
+
+    Logger.recordOutput("{{.Name}}/Setpoint", setpoint != null ? setpoint : Meters.of(0.0));
+    Logger.recordOutput("{{.Name}}/ClosedLoop", setpoint != null);
+    Logger.recordOutput("{{.Name}}/AtSetpoint", atSetpoint());
   }
 
-  public Command setPosition(Distance position) {
-    return runOnce(() -> {
-      targetPosition = position;
-      io.setPosition(position);
-    });
+  @Override
+  public Command idle() {
+    return runRepeatedly(
+            () -> {
+              setpoint = null;
+              io.setVoltage(Volts.of(0.0));
+            })
+        .named("{{.Name}}[IDLE]");
   }
 
-  public boolean atTargetPosition() {
-    return inputs.position.isNear(targetPosition, {{.Name}}Constants.POSITION_TOLERANCE);
+  /** Holds the elevator at {@code height} until interrupted. */
+  public Command hold(Distance height) {
+    return hold(() -> height);
+  }
+
+  public Command hold(Supplier<Distance> height) {
+    return runRepeatedly(() -> commandPosition(height.get())).named("{{.Name}}Hold");
+  }
+
+  /**
+   * Drives to {@code height} and finishes once within tolerance. The default command takes over
+   * afterwards, so use {@link #hold} when the elevator must stay there.
+   */
+  public Command moveTo(Distance height) {
+    return run(coroutine -> {
+          do {
+            commandPosition(height);
+            coroutine.yield();
+          } while (!atSetpoint());
+        })
+        .named("{{.Name}}MoveTo");
+  }
+
+  public boolean atSetpoint() {
+    return setpoint != null && inputs.position.isNear(setpoint, {{.Name}}Constants.TOLERANCE);
+  }
+
+  public Distance getPosition() {
+    return inputs.position;
+  }
+
+  @Override
+  public void close() {
+    motorDisconnectedAlert.close();
+{{- range .Followers}}
+    follower{{.Index}}DisconnectedAlert.close();
+{{- end}}
+  }
+
+  private void commandPosition(Distance desired) {
+    setpoint = clamp(desired);
+    if (setpoint != null) {
+      io.setPosition(setpoint);
+    } else {
+      io.setVoltage(Volts.of(0.0));
+    }
+  }
+
+  private static Distance clamp(Distance height) {
+    if (!Measures.isFinite(height)) {
+      return null;
+    }
+    double min = {{.Name}}Constants.MIN_HEIGHT.in(Meters);
+    double max = {{.Name}}Constants.MAX_HEIGHT.in(Meters);
+    return Meters.of(Math.min(max, Math.max(min, height.in(Meters))));
   }
 }

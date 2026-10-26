@@ -2,14 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/rylero/robot-creator/internal/config"
-	"github.com/rylero/robot-creator/internal/generator"
-	"github.com/rylero/robot-creator/internal/injector"
-	tmpl "github.com/rylero/robot-creator/internal/template"
+	"github.com/rylero/robot-creator/v3/internal/config"
+	"github.com/rylero/robot-creator/v3/internal/generator"
+	"github.com/rylero/robot-creator/v3/internal/injector"
+	tmpl "github.com/rylero/robot-creator/v3/internal/template"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +18,7 @@ var leaderID int
 
 var addSubsystemCmd = &cobra.Command{
 	Use:   "subsystem <Name>",
-	Short: "Generate an AdvantageKit subsystem",
+	Short: "Generate an AdvantageKit Commands v3 mechanism",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runAddSubsystem,
 }
@@ -28,8 +26,8 @@ var addSubsystemCmd = &cobra.Command{
 func init() {
 	addCmd.AddCommand(addSubsystemCmd)
 	addSubsystemCmd.Flags().StringVarP(&subsystemType, "type", "t", "", "subsystem type (flywheel|pivot|roller|arm|elevator|turret|generic|manipulator)")
-	addSubsystemCmd.Flags().IntVar(&motorCount, "motors", 0, "number of motors for arm/elevator/manipulator (default: 2 for arm/elevator, 1 for manipulator)")
-	addSubsystemCmd.Flags().BoolVar(&aligned, "aligned", true, "followers are mechanically aligned to leader (arm/elevator/manipulator with 2+ motors)")
+	addSubsystemCmd.Flags().IntVar(&motorCount, "motors", 0, "number of TalonFX motors (default: 2 for arm/elevator, 1 otherwise)")
+	addSubsystemCmd.Flags().BoolVar(&aligned, "aligned", true, "followers are mechanically aligned to the leader (with 2+ motors)")
 	addSubsystemCmd.Flags().IntVar(&leaderID, "id", 0, "leader/motor CAN ID (followers get consecutive IDs)")
 	addSubsystemCmd.MarkFlagRequired("type")
 }
@@ -70,16 +68,12 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--motors must be >= 1")
 	}
 
-	root, err := config.FindRoot()
-	if err != nil {
-		return err
-	}
-	cfg, err := config.Load(root)
+	root, cfg, err := loadProject()
 	if err != nil {
 		return err
 	}
 	if cfg.HasSubsystem(name) {
-		return fmt.Errorf("%s already exists. Delete it from robot-creator.yaml to regenerate", name)
+		return fmt.Errorf("%s already exists. Run 'robot-creator remove subsystem %s' to regenerate it", name, name)
 	}
 
 	motors := resolveMotorCount(subsystemType, motorCount)
@@ -95,27 +89,22 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 		Followers:  buildFollowers(motors, leaderID),
 	}
 
-	var source tmpl.TemplateSource
-	if cfg.TemplatesDir != "" {
-		source = tmpl.NewLocalSource(filepath.Join(root, cfg.TemplatesDir))
-	} else {
-		source = tmpl.NewEmbeddedSource()
-	}
-	gen := generator.New(source)
-	fmt.Printf("Generating %s subsystem (type: %s)...\n", name, subsystemType)
+	gen := generator.New(templateSource(root, cfg))
+	fmt.Printf("Generating %s mechanism (type: %s)...\n", name, subsystemType)
 	if err := gen.GenerateSubsystem(ctx, root); err != nil {
 		return err
 	}
+	warnings, err := gen.EnsureSupportFiles(cfg.Package, root)
+	if err != nil {
+		return err
+	}
+	for _, w := range warnings {
+		fmt.Printf("\nWarning: %s\n", w)
+	}
 
-	pkgPath := strings.ReplaceAll(cfg.Package, ".", "/")
-	rcPath := filepath.Join(root, "src", "main", "java", pkgPath, "RobotContainer.java")
-	if _, err := os.Stat(rcPath); err == nil {
-		inj := injector.New(rcPath)
-		si := injector.SubsystemInjection{
-			Name:      name,
-			NameLower: strings.ToLower(name),
-			Package:   cfg.Package,
-		}
+	si := injector.SubsystemInjection{Name: name, NameLower: ctx.NameLower, Package: cfg.Package}
+	inj, hasContainer, hasRobot := projectInjector(root, cfg)
+	if hasContainer {
 		if err := inj.Inject(si); err != nil {
 			fmt.Printf("\nWarning: could not auto-inject into RobotContainer.java: %v\n", err)
 			fmt.Println("Add these lines manually:")
@@ -124,10 +113,17 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 			fmt.Println("  injected into RobotContainer.java")
 		}
 	}
+	if hasRobot {
+		if err := inj.InjectPeriodic(ctx.NameLower); err != nil {
+			fmt.Printf("\nWarning: could not auto-inject into Robot.java: %v\n", err)
+			fmt.Printf("Call container.%s.periodic(); in robotPeriodic(), before Scheduler.getDefault().run()\n", ctx.NameLower)
+		} else {
+			fmt.Println("  injected periodic() into Robot.java")
+		}
+	}
 
 	sub := config.Subsystem{Name: name, Type: subsystemType}
-	switch subsystemType {
-	case "arm", "elevator", "manipulator":
+	if motors > 1 {
 		sub.Motors = motors
 		sub.Aligned = aligned
 	}
@@ -136,7 +132,10 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("updating robot-creator.yaml: %w", err)
 	}
 
-	fmt.Printf("\nDone! %s subsystem created.\n", name)
+	fmt.Printf("\nDone! %s mechanism created.\n", name)
+	if cfg.Superstructure {
+		fmt.Printf("Note: the superstructure was generated before %s. Pass it to Superstructure's constructor by hand.\n", name)
+	}
 	return nil
 }
 
@@ -147,7 +146,7 @@ func printManualInstructions(s injector.SubsystemInjection) {
 	fmt.Printf("import %s.%sIO;\n", pkg, s.Name)
 	fmt.Printf("import %s.%sIOTalonFX;\n", pkg, s.Name)
 	fmt.Printf("import %s.%sIOSim;\n\n", pkg, s.Name)
-	fmt.Printf("// Field:\nprivate final %s %s;\n\n", s.Name, s.NameLower)
+	fmt.Printf("// Field:\npublic final %s %s;\n\n", s.Name, s.NameLower)
 	fmt.Printf("// case REAL:\n  %s = new %s(new %sIOTalonFX());\n\n", s.NameLower, s.Name, s.Name)
 	fmt.Printf("// case SIM:\n  %s = new %s(new %sIOSim());\n\n", s.NameLower, s.Name, s.Name)
 	fmt.Printf("// default:\n  %s = new %s(new %sIO() {});\n", s.NameLower, s.Name, s.Name)
