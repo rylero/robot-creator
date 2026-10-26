@@ -31,9 +31,6 @@ robot-creator add subsystem Shooter --type flywheel --motors 2 --id 20
 robot-creator add subsystem Arm --type arm --id 30
 robot-creator add subsystem Wrist --type manipulator
 
-# Generate a superstructure that coordinates the mechanisms added so far
-robot-creator add superstructure --wanted IDLE,INTAKE,SHOOT --active IDLE,INTAKING,SHOOTING
-
 robot-creator list subsystems
 robot-creator remove subsystem Shooter
 ```
@@ -45,9 +42,7 @@ robot-creator remove subsystem Shooter
 | `init --name <dir> --team <number>` | Clone a Commands v3 robot repo and initialize the project |
 | `init --no-clone --team <number>` | Initialize `robot-creator.yaml` in the current directory without cloning |
 | `add subsystem <Name> --type <type>` | Generate a 5-file AdvantageKit mechanism (see flags below) |
-| `add superstructure` | Generate a superstructure state machine (see flags below) |
 | `remove subsystem <Name>` | Delete generated files and unwire them |
-| `remove superstructure` | Delete the superstructure and unwire it |
 | `export templates [dir]` | Copy built-in templates to a local directory for customization |
 | `list types` | Show available subsystem types |
 | `list subsystems` | Show subsystems in the current project |
@@ -61,15 +56,6 @@ robot-creator remove subsystem Shooter
 | `--motors` | 2 for arm/elevator, 1 otherwise | Number of TalonFX motors; every type supports followers |
 | `--aligned` | `true` | Followers mechanically aligned to the leader; pass `--aligned=false` if they face opposite directions |
 | `--id` | `0` | Leader CAN ID; followers get consecutive IDs (`--id 5` → leader=5, follower2=6, follower3=7) |
-
-### `add superstructure` flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `--wanted` | `IDLE` | Comma-separated `Wanted` enum values |
-| `--active` | `IDLE` | Comma-separated `Current` enum values |
-
-States are mapped by index (`wanted[i]` → `active[i]`). If the lists have different lengths, extra wanted states fall back to `active[0]`. State names are uppercased automatically.
 
 ### `init` flags
 
@@ -116,20 +102,11 @@ src/main/java/frc/robot/subsystems/shooter/
 Commands v3 does not call mechanism `periodic()` for you, so the wiring touches two files:
 
 - **`RobotContainer.java`**: imports, a `public final Shooter shooter;` field, and construction in each `Constants.currentMode` case (`REAL`, `SIM`, `default`).
-- **`Robot.java`**: `container.shooter.periodic();` in `robotPeriodic()`, after the other mechanisms and before `container.superstructure.periodic()` and `Scheduler.getDefault().run()`.
+- **`Robot.java`**: `container.shooter.periodic();` in `robotPeriodic()`, after the last existing `periodic()` call and before `Scheduler.getDefault().run()`.
 
 If either file can't be parsed, the lines to add are printed instead. An existing subsystem directory is never overwritten.
 
 The generated code also needs `util/PhoenixUtil`, `util/Measures`, and `sim/VelocityPlant`. Any that are missing from the project are created; existing ones are left alone.
-
-For `robot-creator add superstructure --wanted IDLE,INTAKE --active IDLE,INTAKING`:
-
-```
-src/main/java/frc/robot/subsystems/superstructure/
-  Superstructure.java     # Wanted/Current enums, nextState(), dispatch(), want() commands
-```
-
-The superstructure is a coordinator, not a `Mechanism`. Each cycle it computes `nextState(wanted, current)`. When the state changes, `dispatch()` schedules mechanism commands (stubbed as `idle()` with a TODO). Bind buttons to `superstructure.want(Wanted.INTAKE)`. Its constructor takes every mechanism in `robot-creator.yaml`. Mechanisms added afterwards must be added to it by hand.
 
 ## Custom Templates
 
@@ -138,4 +115,4 @@ robot-creator export templates           # exports to ./templates/
 robot-creator export templates my-tmpls  # exports to ./my-tmpls/
 ```
 
-After export, `robot-creator.yaml` gets `templates_dir: templates`, and `add` uses your local `.tmpl` files (Go template syntax). Remove that line to go back to the built-ins.
+After export, `robot-creator.yaml` gets `templates_dir: templates`, and `add subsystem` uses your local `.tmpl` files (Go template syntax). Remove that line to go back to the built-ins.

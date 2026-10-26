@@ -28,25 +28,6 @@ type SubsystemContext struct {
 	Followers  []FollowerInfo
 }
 
-type Mechanism struct {
-	Name      string
-	NameLower string
-}
-
-type Transition struct {
-	Wanted string
-	Active string
-}
-
-type SuperstructureContext struct {
-	Package       string
-	WantedStates  []string
-	ActiveStates  []string
-	Transitions   []Transition
-	DefaultActive string
-	Mechanisms    []Mechanism
-}
-
 var templateFiles = []string{
 	"Subsystem.java.tmpl",
 	"SubsystemIO.java.tmpl",
@@ -137,22 +118,6 @@ func (g *Generator) EnsureSupportFiles(pkg, projectRoot string) ([]string, error
 		fmt.Printf("  created %s/%s.java\n", f.SubPkg, className)
 	}
 	return warnings, nil
-}
-
-func (g *Generator) GenerateSuperstructure(ctx SuperstructureContext, projectRoot string) (string, error) {
-	outDir := filepath.Join(JavaDir(projectRoot, ctx.Package), "subsystems", "superstructure")
-	outPath := filepath.Join(outDir, "Superstructure.java")
-	if _, err := os.Stat(outPath); err == nil {
-		return "", fmt.Errorf("%s already exists; remove it first", outPath)
-	}
-	raw, err := g.Source.GetTemplate("superstructure", "Superstructure.java.tmpl")
-	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return "", err
-	}
-	return outPath, render("Superstructure.java.tmpl", raw, ctx, outPath)
 }
 
 func render(name string, raw []byte, data any, outPath string) error {

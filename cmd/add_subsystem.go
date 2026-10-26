@@ -133,9 +133,6 @@ func runAddSubsystem(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\nDone! %s mechanism created.\n", name)
-	if cfg.Superstructure {
-		fmt.Printf("Note: the superstructure was generated before %s. Pass it to Superstructure's constructor by hand.\n", name)
-	}
 	return nil
 }
 

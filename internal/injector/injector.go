@@ -53,37 +53,7 @@ func (inj *Injector) Inject(s SubsystemInjection) error {
 	})
 }
 
-// InjectSuperstructure adds the superstructure's import, field, and construction after the
-// currentMode switch, once every mechanism exists.
-func (inj *Injector) InjectSuperstructure(pkg string, mechanisms []string) error {
-	s := SubsystemInjection{Name: "Superstructure", NameLower: "superstructure", Package: pkg}
-	return editFile(inj.RobotContainerPath, func(lines []string) ([]string, error) {
-		if hasField(lines, s.Name, s.NameLower) {
-			return nil, fmt.Errorf("RobotContainer.java already declares Superstructure superstructure")
-		}
-		lines, err := injectImports(lines, []string{fmt.Sprintf("import %s.%s;", s.pkg(), s.Name)})
-		if err != nil {
-			return nil, err
-		}
-		if lines, err = injectField(lines, s); err != nil {
-			return nil, err
-		}
-		switchIdx, _, _, defaultIdx, err := findSwitch(lines)
-		if err != nil {
-			return nil, err
-		}
-		indent := leadingWhitespace(lines[switchIdx])
-		for i := defaultIdx + 1; i < len(lines); i++ {
-			if strings.TrimSpace(lines[i]) == "}" && leadingWhitespace(lines[i]) == indent {
-				line := fmt.Sprintf("%ssuperstructure = new Superstructure(%s);", indent, strings.Join(mechanisms, ", "))
-				return insertLine(lines, i+1, line), nil
-			}
-		}
-		return nil, fmt.Errorf("could not find the end of switch (Constants.currentMode)")
-	})
-}
-
-// Eject removes the imports, field, and assignments Inject or InjectSuperstructure added.
+// Eject removes the imports, field, and assignments Inject added.
 func (inj *Injector) Eject(s SubsystemInjection) error {
 	importPrefix := "import " + s.pkg() + "."
 	assignPrefix := fmt.Sprintf("%s = new %s(", s.NameLower, s.Name)
@@ -107,8 +77,8 @@ func (inj *Injector) Eject(s SubsystemInjection) error {
 
 var periodicRe = regexp.MustCompile(`^(\s*)((?:\w+\.)*)(\w+)\.periodic\(\);\s*$`)
 
-// InjectPeriodic adds "<container>.<field>.periodic();" to Robot.robotPeriodic(), before the
-// scheduler runs. Mechanisms go before the superstructure so it sees fresh inputs.
+// InjectPeriodic adds "<container>.<field>.periodic();" to Robot.robotPeriodic(), after the last
+// existing periodic() call and before the scheduler runs.
 func (inj *Injector) InjectPeriodic(field string) error {
 	return editFile(inj.RobotPath, func(lines []string) ([]string, error) {
 		start := -1
@@ -144,10 +114,6 @@ func (inj *Injector) InjectPeriodic(field string) error {
 				return nil, fmt.Errorf("Robot.java already calls %s%s.periodic()", m[2], field)
 			}
 			indent, prefix = m[1], m[2]
-			if m[3] == "superstructure" {
-				insertAt = i
-				break
-			}
 			insertAt = i + 1
 		}
 		return insertLine(lines, insertAt, fmt.Sprintf("%s%s%s.periodic();", indent, prefix, field)), nil
@@ -215,20 +181,13 @@ func injectImports(lines []string, newImports []string) ([]string, error) {
 }
 
 // injectField declares the field public, since Robot.java reaches it through the container.
-// It goes after the last mechanism field, ahead of the superstructure.
+// It goes after the last uninitialized final field.
 func injectField(lines []string, s SubsystemInjection) ([]string, error) {
 	insertAt, indent := -1, ""
 	for i, line := range lines {
-		m := fieldRe.FindStringSubmatch(line)
-		if m == nil {
-			continue
+		if fieldRe.MatchString(line) {
+			insertAt, indent = i+1, leadingWhitespace(line)
 		}
-		indent = leadingWhitespace(line)
-		if m[1] == "Superstructure" {
-			insertAt = i
-			break
-		}
-		insertAt = i + 1
 	}
 	if insertAt == -1 {
 		return nil, fmt.Errorf("could not find field declarations in RobotContainer.java")
@@ -236,8 +195,9 @@ func injectField(lines []string, s SubsystemInjection) ([]string, error) {
 	return insertLine(lines, insertAt, fmt.Sprintf("%spublic final %s %s;", indent, s.Name, s.NameLower)), nil
 }
 
-func findSwitch(lines []string) (switchIdx, realIdx, simIdx, defaultIdx int, err error) {
-	switchIdx, realIdx, simIdx, defaultIdx = -1, -1, -1, -1
+func findSwitch(lines []string) (realIdx, simIdx, defaultIdx int, err error) {
+	switchIdx := -1
+	realIdx, simIdx, defaultIdx = -1, -1, -1
 	for i, line := range lines {
 		if strings.Contains(line, "switch (Constants.currentMode)") ||
 			strings.Contains(line, "switch (currentMode)") {
@@ -246,7 +206,7 @@ func findSwitch(lines []string) (switchIdx, realIdx, simIdx, defaultIdx int, err
 		}
 	}
 	if switchIdx == -1 {
-		return 0, 0, 0, 0, fmt.Errorf("could not find switch (Constants.currentMode) in RobotContainer.java")
+		return 0, 0, 0, fmt.Errorf("could not find switch (Constants.currentMode) in RobotContainer.java")
 	}
 	for i := switchIdx; i < len(lines) && (realIdx == -1 || simIdx == -1 || defaultIdx == -1); i++ {
 		switch strings.TrimSpace(lines[i]) {
@@ -265,13 +225,13 @@ func findSwitch(lines []string) (switchIdx, realIdx, simIdx, defaultIdx int, err
 		}
 	}
 	if realIdx == -1 || simIdx == -1 || defaultIdx == -1 {
-		return 0, 0, 0, 0, fmt.Errorf("could not find case REAL/SIM/default blocks in switch")
+		return 0, 0, 0, fmt.Errorf("could not find case REAL/SIM/default blocks in switch")
 	}
-	return switchIdx, realIdx, simIdx, defaultIdx, nil
+	return realIdx, simIdx, defaultIdx, nil
 }
 
 func injectSwitchCases(lines []string, s SubsystemInjection) ([]string, error) {
-	_, realIdx, simIdx, defaultIdx, err := findSwitch(lines)
+	realIdx, simIdx, defaultIdx, err := findSwitch(lines)
 	if err != nil {
 		return nil, err
 	}

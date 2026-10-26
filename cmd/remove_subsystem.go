@@ -75,9 +75,6 @@ func runRemoveSubsystem(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\nDone! %s mechanism removed.\n", name)
-	if cfg.Superstructure {
-		fmt.Printf("Note: remove %s from Superstructure and its constructor call by hand.\n", name)
-	}
 	return nil
 }
 

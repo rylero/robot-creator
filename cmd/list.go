@@ -47,7 +47,7 @@ var listSubsystemsCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if len(cfg.Subsystems) == 0 && !cfg.Superstructure {
+		if len(cfg.Subsystems) == 0 {
 			fmt.Println("No subsystems added yet. Use 'robot-creator add subsystem <Name> --type <type>'")
 			return nil
 		}
@@ -57,9 +57,6 @@ var listSubsystemsCmd = &cobra.Command{
 			for _, s := range cfg.Subsystems {
 				fmt.Printf("  %-20s %s\n", s.Name, s.Type)
 			}
-		}
-		if cfg.Superstructure {
-			fmt.Println("\nSuperstructure: yes")
 		}
 		return nil
 	},

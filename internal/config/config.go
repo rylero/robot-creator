@@ -15,12 +15,11 @@ const FileName = "robot-creator.yaml"
 const Version = 3
 
 type Config struct {
-	Version        int         `yaml:"version"`
-	Team           int         `yaml:"team"`
-	Package        string      `yaml:"package"`
-	Subsystems     []Subsystem `yaml:"subsystems,omitempty"`
-	Superstructure bool        `yaml:"superstructure,omitempty"`
-	TemplatesDir   string      `yaml:"templates_dir,omitempty"`
+	Version      int         `yaml:"version"`
+	Team         int         `yaml:"team"`
+	Package      string      `yaml:"package"`
+	Subsystems   []Subsystem `yaml:"subsystems,omitempty"`
+	TemplatesDir string      `yaml:"templates_dir,omitempty"`
 }
 
 type Subsystem struct {

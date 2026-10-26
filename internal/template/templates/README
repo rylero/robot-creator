@@ -1,3 +1,3 @@
 Templates directory. Subsystem templates live in subdirectories named by type (e.g. flywheel/, pivot/).
-superstructure/ holds the Superstructure template; support/ holds helper classes the subsystem
-templates depend on, written into the project only when missing.
+support/ holds helper classes the subsystem templates depend on, written into the project only
+when missing.
